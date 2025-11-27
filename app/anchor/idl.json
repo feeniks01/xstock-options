@@ -1,0 +1,332 @@
+{
+    "version": "0.1.0",
+    "name": "xstock_options",
+    "instructions": [
+        {
+            "name": "createCoveredCall",
+            "accounts": [
+                {
+                    "name": "seller",
+                    "isMut": true,
+                    "isSigner": true
+                },
+                {
+                    "name": "coveredCall",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "vaultAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "xstockMint",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "quoteMint",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "sellerXstockAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "systemProgram",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "tokenProgram",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "rent",
+                    "isMut": false,
+                    "isSigner": false
+                }
+            ],
+            "args": [
+                {
+                    "name": "strike",
+                    "type": "u64"
+                },
+                {
+                    "name": "premium",
+                    "type": "u64"
+                },
+                {
+                    "name": "expiryTs",
+                    "type": "i64"
+                }
+            ]
+        },
+        {
+            "name": "buyOption",
+            "accounts": [
+                {
+                    "name": "buyer",
+                    "isMut": true,
+                    "isSigner": true
+                },
+                {
+                    "name": "coveredCall",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "buyerQuoteAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "sellerQuoteAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "tokenProgram",
+                    "isMut": false,
+                    "isSigner": false
+                }
+            ],
+            "args": []
+        },
+        {
+            "name": "exercise",
+            "accounts": [
+                {
+                    "name": "buyer",
+                    "isMut": true,
+                    "isSigner": true
+                },
+                {
+                    "name": "coveredCall",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "vaultAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "buyerXstockAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "xstockMint",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "priceOracle",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "tokenProgram",
+                    "isMut": false,
+                    "isSigner": false
+                }
+            ],
+            "args": []
+        },
+        {
+            "name": "reclaim",
+            "accounts": [
+                {
+                    "name": "seller",
+                    "isMut": true,
+                    "isSigner": true
+                },
+                {
+                    "name": "coveredCall",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "vaultAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "sellerXstockAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "xstockMint",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "priceOracle",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "tokenProgram",
+                    "isMut": false,
+                    "isSigner": false
+                }
+            ],
+            "args": []
+        },
+        {
+            "name": "updatePrice",
+            "accounts": [
+                {
+                    "name": "admin",
+                    "isMut": true,
+                    "isSigner": true
+                },
+                {
+                    "name": "priceOracle",
+                    "isMut": true,
+                    "isSigner": false
+                }
+            ],
+            "args": [
+                {
+                    "name": "newPrice",
+                    "type": "u64"
+                }
+            ]
+        },
+        {
+            "name": "initializeOracle",
+            "accounts": [
+                {
+                    "name": "admin",
+                    "isMut": true,
+                    "isSigner": true
+                },
+                {
+                    "name": "priceOracle",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "systemProgram",
+                    "isMut": false,
+                    "isSigner": false
+                }
+            ],
+            "args": [
+                {
+                    "name": "initialPrice",
+                    "type": "u64"
+                }
+            ]
+        }
+    ],
+    "accounts": [
+        {
+            "name": "CoveredCall",
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "seller",
+                        "type": "publicKey"
+                    },
+                    {
+                        "name": "buyer",
+                        "type": {
+                            "option": "publicKey"
+                        }
+                    },
+                    {
+                        "name": "xstockMint",
+                        "type": "publicKey"
+                    },
+                    {
+                        "name": "quoteMint",
+                        "type": "publicKey"
+                    },
+                    {
+                        "name": "strike",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "premium",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "expiryTs",
+                        "type": "i64"
+                    },
+                    {
+                        "name": "exercised",
+                        "type": "bool"
+                    },
+                    {
+                        "name": "cancelled",
+                        "type": "bool"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "PriceOracle",
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "price",
+                        "type": "u64"
+                    }
+                ]
+            }
+        }
+    ],
+    "errors": [
+        {
+            "code": 6000,
+            "name": "AlreadySold",
+            "msg": "Option already sold"
+        },
+        {
+            "code": 6001,
+            "name": "Cancelled",
+            "msg": "Option cancelled"
+        },
+        {
+            "code": 6002,
+            "name": "Expired",
+            "msg": "Option expired"
+        },
+        {
+            "code": 6003,
+            "name": "NotExpired",
+            "msg": "Option not expired yet"
+        },
+        {
+            "code": 6004,
+            "name": "NotBuyer",
+            "msg": "Caller is not the buyer"
+        },
+        {
+            "code": 6005,
+            "name": "AlreadyExercised",
+            "msg": "Option already exercised or reclaimed"
+        },
+        {
+            "code": 6006,
+            "name": "OutOfTheMoney",
+            "msg": "Option is Out of The Money"
+        },
+        {
+            "code": 6007,
+            "name": "InTheMoney",
+            "msg": "Option is In The Money"
+        }
+    ]
+}
