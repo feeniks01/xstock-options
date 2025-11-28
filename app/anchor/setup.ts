@@ -1,16 +1,15 @@
-import { Program, Idl } from "@coral-xyz/anchor";
+import { Program, Idl, AnchorProvider } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
-import idl from "./idl.json";
+import idl from "./xstock_idl.json";
 
-export const programId = new PublicKey("Hc2qWi4vf3zng35gyucQNfZVi6ik7kkgwg3NonMsLcFJ");
+export const programId = new PublicKey("9VRMEYvEiKPeGz9N8wVQjvT5qpqcHqNqd31kSYZhop2s");
 
 export const getProgram = (connection: Connection, wallet: any) => {
-    const provider = {
-        connection,
-        publicKey: wallet.publicKey,
-        signTransaction: wallet.signTransaction,
-        signAllTransactions: wallet.signAllTransactions,
-    };
+    const provider = new AnchorProvider(connection, wallet, {
+        commitment: "confirmed",
+    });
     // @ts-ignore
-    return new Program(idl as Idl, programId, provider);
+    idl.address = programId.toBase58();
+    // @ts-ignore
+    return new Program(idl as Idl, provider);
 };

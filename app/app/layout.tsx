@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AppWalletProvider from "../components/AppWalletProvider";
 import Navbar from "../components/Navbar";
+import TickerTape from "../components/TickerTape";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,7 @@ export default function RootLayout({
       >
         <AppWalletProvider>
           <Navbar />
+          <TickerTape />
           <main className="container mx-auto p-8">
             {children}
           </main>
