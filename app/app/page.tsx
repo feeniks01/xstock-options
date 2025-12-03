@@ -82,7 +82,7 @@ export default function DashboardPage() {
       {selectedStock && selectedStock !== MOCK_MINT.toString() && (
         <div className="bg-card border border-border rounded-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-foreground mb-2">Coming Soon</h2>
-          <p className="text-muted-{foreground">
+          <p className="text-muted-foreground">
             Options trading for {XSTOCKS.find(s => s.mint.toString() === selectedStock)?.name} will be available soon.
           </p>
           <p className="text-sm text-muted-foreground mt-4">

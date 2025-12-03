@@ -5,11 +5,11 @@ import { init, dispose, Chart } from 'klinecharts';
 import bs58 from "bs58";
 
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
-import { getProgram, programId } from "../../anchor/setup";
+import { getProgram } from "../../anchor/setup";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { XSTOCKS, QUOTE_MINT, MOCK_MINT } from "../../utils/constants";
+import { XSTOCKS, QUOTE_MINT } from "../../utils/constants";
 import { useRouter } from "next/navigation";
 
 import PositionCard from "./components/PositionCard";
@@ -18,16 +18,7 @@ import HistoryTable from "./components/HistoryTable";
 interface PricePoint {
     timestamp: number;
     price: number;
-}
-
-interface CoveredCallEvent {
-    type: 'created' | 'bought' | 'exercised' | 'reclaimed';
-    timestamp: number;
-    seller: string;
-    buyer?: string;
-    strike: number;
-    premium: number;
-    signature?: string;
+    ohlc?: { open: number; high: number; low: number; close: number };
 }
 
 export default function StockPage() {
@@ -76,16 +67,18 @@ export default function StockPage() {
     useEffect(() => {
         if (wallet.publicKey) {
             // Clear stale price history when wallet connects
-            localStorage.removeItem('priceHistory');
             setPriceHistory([]);
 
             fetchPrice();
             fetchUserPositions();
             fetchUnderlyingBalance();
+            
+            // Poll for updates every 3 seconds for more responsive chart
             const interval = setInterval(() => {
                 fetchPrice();
                 fetchUnderlyingBalance();
-            }, 5000);
+                fetchUserPositions(); // Also refresh positions
+            }, 3000);
             return () => clearInterval(interval);
         }
     }, [wallet.publicKey]);
@@ -115,20 +108,19 @@ export default function StockPage() {
             const res = await fetch('/api/price');
             const data = await res.json();
             const price = data.price;
+            const ohlc = data.ohlc;
 
-            console.log(`Fetched price from API: ${price} at ${new Date().toISOString()}`);
             setCurrentPrice(price);
 
             setPriceHistory(prev => {
-                const newHistory = [...prev, { timestamp: Date.now(), price }];
-                // Keep more history to avoid gaps when aggregating
-                const trimmed = newHistory.slice(-1000);
-                try {
-                    localStorage.setItem('priceHistory', JSON.stringify(trimmed));
-                } catch (e) {
-                    console.warn('Failed to save price history', e);
-                }
-                return trimmed;
+                const newPoint: PricePoint = { 
+                    timestamp: data.timestamp || Date.now(), 
+                    price,
+                    ohlc // Include OHLC data from API
+                };
+                const newHistory = [...prev, newPoint];
+                // Keep more history for smooth chart updates
+                return newHistory.slice(-500);
             });
         } catch (err) {
             console.error("Failed to fetch price:", err);
@@ -196,9 +188,9 @@ export default function StockPage() {
             const coveredCall = position.publicKey;
 
             // Derive ATAs
-            const buyerUnderlyingAccount = await getAta(stock.mint, wallet.publicKey);
-            const buyerQuoteAccount = await getAta(QUOTE_MINT, wallet.publicKey);
-            const sellerQuoteAccount = await getAta(QUOTE_MINT, position.account.seller);
+            const buyerUnderlyingAccount = getAta(stock.mint, wallet.publicKey);
+            const buyerQuoteAccount = getAta(QUOTE_MINT, wallet.publicKey);
+            const sellerQuoteAccount = getAta(QUOTE_MINT, position.account.seller);
             const vaultAccount = PublicKey.findProgramAddressSync(
                 [Buffer.from("vault"), coveredCall.toBuffer()],
                 program.programId
@@ -235,8 +227,6 @@ export default function StockPage() {
                 }
             });
 
-            // @ts-ignore
-            const { Transaction } = await import("@solana/web3.js");
             const tx = new Transaction().add(ix);
 
             const { blockhash } = await connection.getLatestBlockhash();
@@ -263,7 +253,7 @@ export default function StockPage() {
             const program = getProgram(connection, wallet);
             const coveredCall = position.publicKey;
 
-            const sellerUnderlyingAccount = await getAta(stock.mint, wallet.publicKey);
+            const sellerUnderlyingAccount = getAta(stock.mint, wallet.publicKey);
             const vaultAccount = PublicKey.findProgramAddressSync(
                 [Buffer.from("vault"), coveredCall.toBuffer()],
                 program.programId
@@ -332,8 +322,6 @@ export default function StockPage() {
                 })
                 .instruction();
 
-            // @ts-ignore
-            const { Transaction } = await import("@solana/web3.js");
             const tx = new Transaction().add(ix);
             const { blockhash } = await connection.getLatestBlockhash();
             tx.recentBlockhash = blockhash;
@@ -365,8 +353,6 @@ export default function StockPage() {
                 })
                 .instruction();
 
-            // @ts-ignore
-            const { Transaction } = await import("@solana/web3.js");
             const tx = new Transaction().add(ix);
             const { blockhash } = await connection.getLatestBlockhash();
             tx.recentBlockhash = blockhash;
@@ -524,9 +510,11 @@ export default function StockPage() {
 function ChartComponent({ priceHistory }: { priceHistory: PricePoint[] }) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartInstance = useRef<Chart | null>(null);
+    const lastCandleCount = useRef<number>(0);
+    const chartId = useRef<string>(`chart-${Date.now()}`);
 
     useEffect(() => {
-        if (chartContainerRef.current) {
+        if (chartContainerRef.current && !chartInstance.current) {
             chartInstance.current = init(chartContainerRef.current);
             chartInstance.current?.setStyles({
                 grid: {
@@ -537,61 +525,99 @@ function ChartComponent({ priceHistory }: { priceHistory: PricePoint[] }) {
                     bar: {
                         upColor: '#26a69a',
                         downColor: '#ef5350',
-                        noChangeColor: '#888888'
+                        noChangeColor: '#888888',
+                        upBorderColor: '#26a69a',
+                        downBorderColor: '#ef5350',
+                        noChangeBorderColor: '#888888',
+                        upWickColor: '#26a69a',
+                        downWickColor: '#ef5350',
+                        noChangeWickColor: '#888888'
                     }
+                },
+                xAxis: {
+                    tickText: { color: '#787b86' }
+                },
+                yAxis: {
+                    tickText: { color: '#787b86' }
                 }
             });
         }
+        
         return () => {
-            if (chartContainerRef.current) {
+            if (chartContainerRef.current && chartInstance.current) {
                 dispose(chartContainerRef.current);
+                chartInstance.current = null;
             }
         };
     }, []);
 
     useEffect(() => {
-        if (chartInstance.current && priceHistory.length > 0) {
-            const interval = 60 * 1000; // 1 minute aggregation for better candles
+        if (!chartInstance.current || priceHistory.length === 0) return;
 
-            // Helper to convert price point to candle
-            const getCandle = (timestamp: number, points: PricePoint[]) => {
-                if (!points || points.length === 0) {
-                    return null;
-                }
-                const open = points[0].price;
-                const close = points[points.length - 1].price;
-                const high = Math.max(...points.map(p => p.price));
-                const low = Math.min(...points.map(p => p.price));
-                return { timestamp, open, high, low, close, volume: 0 };
-            };
+        const interval = 30 * 1000; // 30-second candles for more activity
 
-            const grouped = new Map<number, PricePoint[]>();
-            priceHistory.forEach(p => {
-                const bucket = Math.floor(p.timestamp / interval) * interval;
-                if (!grouped.has(bucket)) grouped.set(bucket, []);
-                grouped.get(bucket)!.push(p);
-            });
+        // Build candles from price history, using OHLC data when available
+        const grouped = new Map<number, PricePoint[]>();
+        priceHistory.forEach(p => {
+            const bucket = Math.floor(p.timestamp / interval) * interval;
+            if (!grouped.has(bucket)) grouped.set(bucket, []);
+            grouped.get(bucket)!.push(p);
+        });
 
-            // Generate candles
-            const candles: any[] = [];
-            const sortedBuckets = Array.from(grouped.keys()).sort((a, b) => a - b);
+        // Generate candles with proper OHLC from API data
+        const candles: any[] = [];
+        const sortedBuckets = Array.from(grouped.keys()).sort((a, b) => a - b);
 
-            sortedBuckets.forEach(time => {
-                const points = grouped.get(time)!;
-                const candle = getCandle(time, points);
-                if (candle) {
-                    candles.push(candle);
-                }
-            });
+        sortedBuckets.forEach(time => {
+            const points = grouped.get(time)!;
+            if (!points || points.length === 0) return;
 
-            // Apply data
-            if (candles.length > 0) {
-                // Use applyNewData to ensure the chart reflects the latest aggregation state
-                // This handles both new candles and updates to the current (incomplete) candle
-                // @ts-ignore
-                chartInstance.current.applyNewData(candles);
+            // If we have OHLC data from API, use it for more realistic candles
+            let open: number, high: number, low: number, close: number;
+            
+            if (points.some(p => p.ohlc)) {
+                // Aggregate OHLC from all points in this bucket
+                const ohlcPoints = points.filter(p => p.ohlc);
+                open = ohlcPoints[0]?.ohlc?.open ?? points[0].price;
+                close = ohlcPoints[ohlcPoints.length - 1]?.ohlc?.close ?? points[points.length - 1].price;
+                high = Math.max(...ohlcPoints.map(p => p.ohlc?.high ?? p.price));
+                low = Math.min(...ohlcPoints.map(p => p.ohlc?.low ?? p.price));
+            } else {
+                // Fallback to simple price aggregation
+                open = points[0].price;
+                close = points[points.length - 1].price;
+                high = Math.max(...points.map(p => p.price));
+                low = Math.min(...points.map(p => p.price));
             }
+
+            candles.push({ 
+                timestamp: time, 
+                open, 
+                high, 
+                low, 
+                close, 
+                volume: points.length * 1000 // Simulated volume based on tick count
+            });
+        });
+
+        if (candles.length === 0) return;
+
+        // Determine if we need to apply new data or just update
+        const isNewCandleAdded = candles.length > lastCandleCount.current;
+        
+        if (lastCandleCount.current === 0 || isNewCandleAdded) {
+            // Initial load or new candle added - replace all data
+            // @ts-ignore
+            chartInstance.current.applyNewData(candles);
+        } else {
+            // Just updating the current candle - use updateData for smooth updates
+            const lastCandle = candles[candles.length - 1];
+            // @ts-ignore
+            chartInstance.current.updateData(lastCandle);
         }
+        
+        lastCandleCount.current = candles.length;
+
     }, [priceHistory]);
 
     return <div ref={chartContainerRef} className="w-full h-full" />;

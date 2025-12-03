@@ -21,16 +21,6 @@
                     "isSigner": true
                 },
                 {
-                    "name": "coveredCall",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vaultAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
                     "name": "xstockMint",
                     "isMut": false,
                     "isSigner": false
@@ -41,7 +31,17 @@
                     "isSigner": false
                 },
                 {
+                    "name": "coveredCall",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
                     "name": "sellerXstockAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "vaultAccount",
                     "isMut": true,
                     "isSigner": false
                 },
@@ -166,11 +166,6 @@
                     "isSigner": false
                 },
                 {
-                    "name": "priceOracle",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
                     "name": "tokenProgram",
                     "isMut": false,
                     "isSigner": false
@@ -217,84 +212,12 @@
                     "isSigner": false
                 },
                 {
-                    "name": "priceOracle",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
                     "name": "tokenProgram",
                     "isMut": false,
                     "isSigner": false
                 }
             ],
             "args": []
-        },
-        {
-            "name": "updatePrice",
-            "discriminator": [
-                61,
-                34,
-                117,
-                155,
-                75,
-                34,
-                123,
-                208
-            ],
-            "accounts": [
-                {
-                    "name": "admin",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "priceOracle",
-                    "isMut": true,
-                    "isSigner": false
-                }
-            ],
-            "args": [
-                {
-                    "name": "newPrice",
-                    "type": "u64"
-                }
-            ]
-        },
-        {
-            "name": "initializeOracle",
-            "discriminator": [
-                144,
-                223,
-                131,
-                120,
-                196,
-                253,
-                181,
-                99
-            ],
-            "accounts": [
-                {
-                    "name": "admin",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "priceOracle",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "systemProgram",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": [
-                {
-                    "name": "initialPrice",
-                    "type": "u64"
-                }
-            ]
         },
         {
             "name": "listForSale",
@@ -412,18 +335,6 @@
                     }
                 ]
             }
-        },
-        {
-            "name": "PriceOracle",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "price",
-                        "type": "u64"
-                    }
-                ]
-            }
         }
     ],
     "accounts": [
@@ -439,19 +350,6 @@
                 42,
                 94
             ]
-        },
-        {
-            "name": "PriceOracle",
-            "discriminator": [
-                57,
-                140,
-                120,
-                176,
-                191,
-                65,
-                52,
-                89
-            ]
         }
     ],
     "errors": [
@@ -462,51 +360,41 @@
         },
         {
             "code": 6001,
-            "name": "Cancelled",
+            "name": "OptionCancelled",
             "msg": "Option cancelled"
         },
         {
             "code": 6002,
-            "name": "Expired",
+            "name": "OptionExpired",
             "msg": "Option expired"
         },
         {
             "code": 6003,
-            "name": "NotExpired",
+            "name": "OptionNotExpired",
             "msg": "Option not expired yet"
         },
         {
             "code": 6004,
-            "name": "NotBuyer",
+            "name": "Unauthorized",
             "msg": "Caller is not the buyer"
         },
         {
             "code": 6005,
-            "name": "AlreadyExercised",
+            "name": "OptionAlreadyExercised",
             "msg": "Option already exercised or reclaimed"
         },
         {
             "code": 6006,
-            "name": "OutOfTheMoney",
-            "msg": "Option is Out of The Money"
-        },
-        {
-            "code": 6007,
-            "name": "InTheMoney",
-            "msg": "Option is In The Money"
-        },
-        {
-            "code": 6008,
-            "name": "NotListed",
+            "name": "OptionNotListed",
             "msg": "Option is not listed for sale"
         },
         {
-            "code": 6009,
-            "name": "IncorrectSeller",
-            "msg": "Incorrect seller account"
+            "code": 6007,
+            "name": "InsufficientFunds",
+            "msg": "Insufficient funds"
         }
     ],
     "metadata": {
-        "address": "Fqny4reQmX8uP9BBRu5ePoPpR6yEezCnZ1iiyuTdq9uT"
+        "address": "9VRMEYvEiKPeGz9N8wVQjvT5qpqcHqNqd31kSYZhop2s"
     }
 }

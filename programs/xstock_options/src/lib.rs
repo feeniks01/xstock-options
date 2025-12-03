@@ -24,6 +24,9 @@ pub mod xstock_options {
         covered_call.cancelled = false;
         covered_call.buyer = None;
         covered_call.buyer_exercised = false;
+        // Auto-list on creation so options are immediately available in marketplace
+        covered_call.is_listed = true;
+        covered_call.ask_price = premium;
 
         // Transfer 1 xStock to vault
         // Assuming xStock has 0 decimals or we transfer 1 * 10^decimals. 
@@ -39,7 +42,7 @@ pub mod xstock_options {
         // assuming the test mint has 0 decimals or user knows what they are doing.
         // Transfer 1 xStock to vault (1 token = 1 share with 6 decimals)
 
-        // Transfer xStock to Vault
+        // Transfer xStock to Vault (100 shares per contract)
         let cpi_accounts = Transfer {
             from: ctx.accounts.seller_xstock_account.to_account_info(),
             to: ctx.accounts.vault_account.to_account_info(),
@@ -47,7 +50,7 @@ pub mod xstock_options {
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        token::transfer(cpi_ctx, 1_000_000)?; // 1 xStock (6 decimals)
+        token::transfer(cpi_ctx, 100_000_000)?; // 100 xStock (6 decimals)
 
         Ok(())
     }
@@ -115,7 +118,7 @@ pub mod xstock_options {
         };
         let cpi_program_transfer = ctx.accounts.token_program.to_account_info();
         let cpi_ctx_transfer = CpiContext::new_with_signer(cpi_program_transfer, cpi_accounts_transfer, signer);
-        token::transfer(cpi_ctx_transfer, 1_000_000)?;
+        token::transfer(cpi_ctx_transfer, 100_000_000)?; // 100 xStock
 
         covered_call.exercised = true;
         covered_call.buyer_exercised = true;
@@ -150,7 +153,7 @@ pub mod xstock_options {
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
-        token::transfer(cpi_ctx, 1_000_000)?;
+        token::transfer(cpi_ctx, 100_000_000)?; // 100 xStock
 
         covered_call.exercised = true; // Mark as "exercised" (closed)
         covered_call.cancelled = true;

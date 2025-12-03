@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import bs58 from "bs58";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import { getProgram, programId } from "../../../anchor/setup";
 import { TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
@@ -125,7 +125,7 @@ export default function ChainPage() {
             console.log("Contracts:", params.contracts);
 
             const [coveredCallPda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("covered_call"), wallet.publicKey.toBuffer(), new BN(expiryTimestamp).toArrayLike(Buffer, "le", 8)],
+                [Buffer.from("covered_call"), wallet.publicKey.toBuffer(), stock.mint.toBuffer(), new BN(expiryTimestamp).toArrayLike(Buffer, "le", 8)],
                 programId
             );
 
@@ -166,8 +166,6 @@ export default function ChainPage() {
                 }
             });
 
-            // @ts-ignore
-            const { Transaction } = await import("@solana/web3.js");
             const tx = new Transaction().add(ix);
             const { blockhash } = await connection.getLatestBlockhash();
             tx.recentBlockhash = blockhash;
@@ -197,15 +195,29 @@ export default function ChainPage() {
             const coveredCallKey = account.publicKey;
             const data = account.account;
 
+            // Validate data
+            if (!data || !data.quoteMint || !data.seller) {
+                throw new Error("Invalid option data");
+            }
+
             const getAta = (mint: PublicKey, owner: PublicKey) => {
+                if (!mint || !owner) {
+                    throw new Error("Invalid mint or owner for ATA derivation");
+                }
                 return PublicKey.findProgramAddressSync(
                     [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
                     new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
                 )[0];
             };
 
-            const isResale = data.isListed;
+            // An option is a resale only if it has been purchased (buyer exists)
+            // Just being listed doesn't mean it's a resale
+            const isResale = data.buyer !== null;
             const currentSeller = isResale ? data.buyer : data.seller;
+
+            if (!currentSeller) {
+                throw new Error("No seller found for this option");
+            }
 
             const buyerQuoteAccount = getAta(data.quoteMint, wallet.publicKey);
             const sellerQuoteAccount = getAta(data.quoteMint, currentSeller);
@@ -248,8 +260,6 @@ export default function ChainPage() {
                 }
             });
 
-            // @ts-ignore
-            const { Transaction } = await import("@solana/web3.js");
             const tx = new Transaction();
 
             // Check if seller quote account exists
