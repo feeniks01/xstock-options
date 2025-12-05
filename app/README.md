@@ -1,6 +1,6 @@
-# xOptions Frontend
+# xOptions
 
-A Next.js web application for trading covered call options on tokenized stocks on Solana.
+A permissionless platform for trading options on tokenized stocks on Solana.
 
 ## Prerequisites
 
