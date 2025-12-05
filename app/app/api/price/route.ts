@@ -127,10 +127,16 @@ query TokenSupply($mintAddress: String!) {
 }`;
 
 async function getAccessToken(): Promise<string> {
-    const clientId = process.env.BITQUERY_CLIENT_ID;
-    const clientSecret = process.env.BITQUERY_CLIENT_SECRET;
+    const clientId = process.env.BITQUERY_CLIENT_ID?.trim();
+    const clientSecret = process.env.BITQUERY_CLIENT_SECRET?.trim();
 
     if (!clientId || !clientSecret) {
+        console.error('Missing credentials:', { 
+            hasClientId: !!clientId, 
+            hasClientSecret: !!clientSecret,
+            clientIdLength: clientId?.length,
+            clientSecretLength: clientSecret?.length
+        });
         throw new Error('BITQUERY_CLIENT_ID and BITQUERY_CLIENT_SECRET must be configured');
     }
 
@@ -140,21 +146,33 @@ async function getAccessToken(): Promise<string> {
     }
 
     // Request new access token
+    // Try Basic Auth first (some OAuth2 implementations prefer this)
+    const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    
     const response = await fetch(BITQUERY_OAUTH_URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${authHeader}`,
         },
         body: new URLSearchParams({
             grant_type: 'client_credentials',
-            client_id: clientId,
-            client_secret: clientSecret,
             scope: 'api',
         }),
     });
 
     if (!response.ok) {
         const errorText = await response.text();
+        console.error('OAuth request failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText,
+            clientIdPrefix: clientId?.substring(0, 8) + '...',
+            clientIdLength: clientId?.length,
+            clientSecretLength: clientSecret?.length,
+            oauthUrl: BITQUERY_OAUTH_URL,
+            clientSecretPrefix: clientSecret?.substring(0, 8) + '...',
+        });
         throw new Error(`OAuth token error: ${response.status} - ${errorText}`);
     }
 
