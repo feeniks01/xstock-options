@@ -21,6 +21,12 @@ export default function ChainPage() {
     const stock = XSTOCKS[0];
     const [currentPrice, setCurrentPrice] = useState<number | null>(null);
     const [priceChange, setPriceChange] = useState<number>(0);
+    const [historicalVolatility, setHistoricalVolatility] = useState<{
+        hv20: number;
+        hv60: number;
+        hvAll: number;
+        baseIV: number;
+    } | null>(null);
     const [availableOptions, setAvailableOptions] = useState<any[]>([]);
     const [selectedOption, setSelectedOption] = useState<any | null>(null);
     const [selectedInfo, setSelectedInfo] = useState<SelectedOptionInfo | null>(null);
@@ -40,13 +46,25 @@ export default function ChainPage() {
 
     const fetchPrice = async () => {
         try {
-            const res = await fetch('/api/price');
+            const mintAddress = stock.priceMint?.toBase58() || stock.mint.toBase58();
+            const params = new URLSearchParams({
+                mint: mintAddress,
+                symbol: stock.symbol,
+                name: stock.name,
+                interval: 'MAX', // Request max data for better HV calculation
+            });
+            const res = await fetch(`/api/price?${params}`);
             const data = await res.json();
             const price = data.price || data.currentPrice;
             if (currentPrice && price) {
                 setPriceChange(((price - currentPrice) / currentPrice) * 100);
             }
             setCurrentPrice(price);
+            
+            // Extract historical volatility for IV calculations
+            if (data.historicalVolatility) {
+                setHistoricalVolatility(data.historicalVolatility);
+            }
         } catch (err) {
             console.error("Failed to fetch price:", err);
         }
@@ -76,6 +94,7 @@ export default function ChainPage() {
 
             const allCalls = accounts.map(acc => {
                 try {
+                    // Account size: 8 (discriminator) + 32*4 (pubkeys) + 8*6 (u64s) + 4 (bools) + 1 (option tag) + 32 (optional pubkey) = 213 minimum
                     if (acc.account.data.length < 173) {
                         return null;
                     }
@@ -88,8 +107,12 @@ export default function ChainPage() {
                 }
             }).filter(a => a !== null);
 
+            // Filter to only show options for the current stock's mint
             const options = allCalls.filter((a: any) =>
+                a.account.xstockMint.toString() === stock.mint.toString() &&
                 (!a.account.buyer || a.account.isListed) &&
+                !a.account.exercised &&
+                !a.account.cancelled &&
                 a.account.expiryTs.toNumber() > Date.now() / 1000
             );
 
@@ -124,12 +147,15 @@ export default function ChainPage() {
         try {
             const program = getProgram(connection, wallet);
 
-            const strikePrice = params.strike * 100 * 1_000_000;
-            const premiumAmount = Math.floor(params.premium * 1_000_000);
+            // Generate unique ID using timestamp
+            const uid = new BN(Date.now());
+            const strikePrice = params.strike * 100 * 1_000_000; // Strike in USDC with 6 decimals
+            const premiumAmount = Math.floor(params.premium * 1_000_000); // Premium in USDC with 6 decimals
             const expiryTimestamp = Math.floor(params.expiry.getTime() / 1000);
+            const amount = new BN(params.contracts * 100 * 1_000_000); // 100 shares per contract with 6 decimals
 
             const [coveredCallPda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("covered_call"), wallet.publicKey.toBuffer(), stock.mint.toBuffer(), new BN(expiryTimestamp).toArrayLike(Buffer, "le", 8)],
+                [Buffer.from("covered_call"), wallet.publicKey.toBuffer(), stock.mint.toBuffer(), uid.toArrayLike(Buffer, "le", 8)],
                 programId
             );
 
@@ -148,7 +174,7 @@ export default function ChainPage() {
             const sellerXstockAccount = getATA(stock.mint, wallet.publicKey);
 
             const ix = await program.methods
-                .createCoveredCall(new BN(strikePrice), new BN(premiumAmount), new BN(expiryTimestamp))
+                .createCoveredCall(uid, new BN(strikePrice), new BN(premiumAmount), new BN(expiryTimestamp), amount)
                 .accounts({
                     seller: wallet.publicKey,
                     coveredCall: coveredCallPda,
@@ -202,6 +228,12 @@ export default function ChainPage() {
             if (!data || !data.quoteMint || !data.seller) {
                 throw new Error("Invalid option data");
             }
+            
+            // Check if user is trying to buy their own option
+            const currentOwner = data.buyer || data.seller;
+            if (currentOwner.toString() === wallet.publicKey.toString()) {
+                throw new Error("Cannot buy your own option");
+            }
 
             const getAta = (mint: PublicKey, owner: PublicKey) => {
                 return PublicKey.findProgramAddressSync(
@@ -226,7 +258,7 @@ export default function ChainPage() {
                     buyer: wallet.publicKey,
                     coveredCall: coveredCallKey,
                     buyerQuoteAccount: buyerQuoteAccount,
-                    sellerQuoteAccount: sellerQuoteAccount,
+                    paymentAccount: sellerQuoteAccount, // Payment goes to current owner (seller or previous buyer)
                     tokenProgram: TOKEN_PROGRAM_ID,
                 })
                 .instruction();
@@ -359,6 +391,7 @@ export default function ChainPage() {
                             selectedOption={selectedOption}
                             onSelectOption={handleOptionSelect}
                             currentPrice={currentPrice || 0}
+                            historicalVolatility={historicalVolatility || undefined}
                         />
                     </div>
                     
@@ -374,19 +407,49 @@ export default function ChainPage() {
                                 isProcessing={isProcessing}
                             />
                             
-                            {/* Quick Stats */}
+                            {/* Market Stats with Real Volatility */}
                             <div className="mt-4 bg-[#0a0b0d] border border-white/5 rounded-xl p-4 space-y-3">
-                                <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider">Market Stats</h3>
+                                <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider">Volatility</h3>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="bg-white/[0.02] rounded-lg p-3">
-                                        <p className="text-[10px] text-white/40 uppercase">Total Options</p>
-                                        <p className="text-lg font-bold text-white">{availableOptions.length}</p>
+                                        <p className="text-[10px] text-white/40 uppercase">Base IV</p>
+                                        <p className="text-lg font-bold text-white">
+                                            {historicalVolatility 
+                                                ? `${(historicalVolatility.baseIV * 100).toFixed(1)}%`
+                                                : '—'
+                                            }
+                                        </p>
                                     </div>
                                     <div className="bg-white/[0.02] rounded-lg p-3">
-                                        <p className="text-[10px] text-white/40 uppercase">Avg IV</p>
-                                        <p className="text-lg font-bold text-white">32.5%</p>
+                                        <p className="text-[10px] text-white/40 uppercase">HV (20)</p>
+                                        <p className="text-lg font-bold text-white">
+                                            {historicalVolatility 
+                                                ? `${(historicalVolatility.hv20 * 100).toFixed(1)}%`
+                                                : '—'
+                                            }
+                                        </p>
                                     </div>
                                 </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-white/[0.02] rounded-lg p-3">
+                                        <p className="text-[10px] text-white/40 uppercase">HV (60)</p>
+                                        <p className="text-lg font-bold text-white">
+                                            {historicalVolatility 
+                                                ? `${(historicalVolatility.hv60 * 100).toFixed(1)}%`
+                                                : '—'
+                                            }
+                                        </p>
+                                    </div>
+                                    <div className="bg-white/[0.02] rounded-lg p-3">
+                                        <p className="text-[10px] text-white/40 uppercase">On-Chain</p>
+                                        <p className="text-lg font-bold text-white">{availableOptions.length}</p>
+                                    </div>
+                                </div>
+                                {historicalVolatility && (
+                                    <p className="text-[10px] text-white/30 text-center pt-1">
+                                        IV derived from historical price volatility
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>

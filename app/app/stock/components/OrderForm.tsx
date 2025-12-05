@@ -87,10 +87,10 @@ export default function OrderForm({
         }
     }, [selectedInfo]);
 
-    // Calculate estimated premium for suggestion
+    // Calculate estimated premium for suggestion (per share)
     const calculatedExpiryDate = new Date(Date.now() + expiryInterval);
     const estimatedPremium = (currentPrice && strikePrice)
-        ? calculateOptionPremium(currentPrice, parseFloat(strikePrice), calculatedExpiryDate) * 100
+        ? calculateOptionPremium(currentPrice, parseFloat(strikePrice), calculatedExpiryDate)
         : 0;
 
     // Update custom premium when estimate changes
@@ -127,8 +127,11 @@ export default function OrderForm({
         });
     };
 
+    // Premium is per-share, total cost = premium × shares (100 shares per contract)
+    const premiumPerShare = selectedInfo?.premium || (selectedOption?.account?.premium?.toNumber() / 1_000_000) || 0;
+    const sharesPerContract = 100;
     const estimatedCost = activeTab === "buy" && (selectedOption || selectedInfo)
-        ? (selectedInfo?.premium || (selectedOption?.account?.premium?.toNumber() / 1_000_000)) * buyContracts
+        ? premiumPerShare * buyContracts * sharesPerContract
         : 0;
 
     // Determine if there's a real option to buy
@@ -258,7 +261,7 @@ export default function OrderForm({
                         {/* Premium Section */}
                         <div className="pt-4 border-t border-white/5">
                             <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm font-medium text-white">Premium / Contract</span>
+                                <span className="text-sm font-medium text-white">Premium / Share</span>
                                 <div className="relative w-28">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">$</span>
                                     <input
@@ -271,9 +274,9 @@ export default function OrderForm({
                                 </div>
                             </div>
                             <div className="flex justify-between items-center text-xs">
-                                <span className="text-white/40">Suggested: ${estimatedPremium.toFixed(2)}</span>
+                                <span className="text-white/40">Suggested: ${estimatedPremium.toFixed(2)}/share</span>
                                 <span className="text-green-400 font-medium">
-                                    Credit: ${(parseFloat(customPremium || "0") * sellContracts).toFixed(2)}
+                                    Credit: ${(parseFloat(customPremium || "0") * sellContracts * 100).toFixed(2)}
                                 </span>
                             </div>
                         </div>
@@ -366,7 +369,7 @@ export default function OrderForm({
                                             </p>
                                         </div>
                                         <div>
-                                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Premium</p>
+                                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Premium/Share</p>
                                             <p className="text-xl font-bold text-green-400">
                                                 ${selectedInfo?.premium?.toFixed(2) || (selectedOption?.account?.premium?.toNumber() / 1_000_000).toFixed(2)}
                                             </p>
@@ -408,7 +411,7 @@ export default function OrderForm({
                                         <div className="bg-white/[0.02] rounded-lg p-2.5 text-center">
                                             <p className="text-[10px] text-white/40 uppercase">Max Loss</p>
                                             <p className="text-sm font-mono text-red-400">
-                                                ${((selectedInfo?.premium || 0) * buyContracts * 100).toFixed(0)}
+                                                ${estimatedCost.toFixed(0)}
                                             </p>
                                         </div>
                                     </div>
@@ -433,7 +436,7 @@ export default function OrderForm({
                                         <span className="text-2xl font-bold text-white">${estimatedCost.toFixed(2)}</span>
                                     </div>
                                     <p className="text-xs text-white/40 text-right">
-                                        = {buyContracts} × ${(selectedInfo?.premium || (selectedOption?.account?.premium?.toNumber() / 1_000_000) || 0).toFixed(2)} premium
+                                        = {buyContracts} contract × ${premiumPerShare.toFixed(2)}/share × 100 shares
                                     </p>
                                 </div>
 

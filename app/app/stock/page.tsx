@@ -135,13 +135,13 @@ export default function StockPage() {
     const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
     const [chartInterval, setChartInterval] = useState<ChartInterval>("1D");
     const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
-    const [showPriceAlert, setShowPriceAlert] = useState(false);
 
     // Market state
     const [userPositions, setUserPositions] = useState<any[]>([]);
     const [underlyingBalance, setUnderlyingBalance] = useState<number>(0);
     const [activeTab, setActiveTab] = useState<'active' | 'history' | 'about'>('active');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isLoadingPositions, setIsLoadingPositions] = useState(true);
     
     // Polling interval (in milliseconds)
     const [pollInterval, setPollInterval] = useState<number>(10000);
@@ -252,6 +252,7 @@ export default function StockPage() {
             const accountClient = program.account.coveredCall || program.account.CoveredCall;
             if (!accountClient) {
                 console.error("Could not find coveredCall or CoveredCall in program.account");
+                setIsLoadingPositions(false);
                 return;
             }
             const memcmpResult = accountClient.coder.accounts.memcmp("coveredCall");
@@ -283,14 +284,18 @@ export default function StockPage() {
                 }
             }).filter(a => a !== null);
 
+            // Filter to only show positions for the current stock's mint that belong to the user
             const positions = allCalls.filter((a: any) =>
-                a.account.seller.toString() === wallet.publicKey?.toString() ||
-                a.account.buyer?.toString() === wallet.publicKey?.toString()
+                a.account.xstockMint.toString() === stock.mint.toString() &&
+                (a.account.seller.toString() === wallet.publicKey?.toString() ||
+                 a.account.buyer?.toString() === wallet.publicKey?.toString())
             );
 
             setUserPositions(positions);
         } catch (e) {
             console.error("Error fetching positions:", e);
+        } finally {
+            setIsLoadingPositions(false);
         }
     };
 
@@ -411,7 +416,7 @@ export default function StockPage() {
             const ix = await program.methods
                 .listForSale(new BN(price * 1_000_000))
                 .accounts({
-                    seller: wallet.publicKey,
+                    signer: wallet.publicKey,
                     coveredCall: position.publicKey,
                 })
                 .instruction();
@@ -442,7 +447,7 @@ export default function StockPage() {
             const ix = await program.methods
                 .cancelListing()
                 .accounts({
-                    seller: wallet.publicKey,
+                    signer: wallet.publicKey,
                     coveredCall: position.publicKey,
                 })
                 .instruction();
@@ -579,15 +584,6 @@ export default function StockPage() {
                         {stockData.sparkline && stockData.sparkline.length > 1 && (
                             <MiniSparkline data={stockData.sparkline} positive={stockData.priceChange >= 0} />
                         )}
-                        {/* Exchange/Oracle info inline */}
-                        <div className="ml-auto flex items-center gap-3 text-[10px] text-[rgba(255,255,255,0.4)]">
-                            <span>{stockData.dex || 'DEX'}</span>
-                            <span className="text-[#3f3f46]">•</span>
-                            <span>{stockData.source === 'bitquery' ? 'Bitquery' : 'Internal'}</span>
-                            <span className="text-[#3f3f46]">•</span>
-                            <span>{lastUpdateTime ? lastUpdateTime.toLocaleTimeString() : '—'}</span>
-                            {stockData.stale && <span className="text-yellow-500">⚠</span>}
-                        </div>
                     </div>
                 )}
             </div>
@@ -599,7 +595,7 @@ export default function StockPage() {
                 <div className="grid grid-cols-5 gap-2">
                     {/* OHLC Block */}
                     <Tooltip text="Opening price for the selected time interval">
-                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 hover:border-[#3f3f46] transition-colors cursor-help">
+                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 h-[72px] hover:border-[#3f3f46] transition-colors cursor-help">
                             <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">OHLC</p>
                             <div className="grid grid-cols-2 gap-x-2 text-xs">
                                 <div><span className="text-[rgba(255,255,255,0.4)]">O</span> <span className="font-semibold text-[#f5f5f5]">{stockData.open.toFixed(2)}</span></div>
@@ -612,7 +608,7 @@ export default function StockPage() {
 
                     {/* Volume Block */}
                     <Tooltip text="Total trading volume in the past 24 hours">
-                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 hover:border-[#3f3f46] transition-colors cursor-help">
+                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 h-[72px] hover:border-[#3f3f46] transition-colors cursor-help">
                             <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">Volume (24h)</p>
                             <p className="text-lg font-bold text-[#f5f5f5]">{formatVolume(stockData.volume)}</p>
                         </div>
@@ -620,7 +616,7 @@ export default function StockPage() {
 
                     {/* 52w Range Block */}
                     <Tooltip text="52-week price range with current position">
-                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 hover:border-[#3f3f46] transition-colors cursor-help">
+                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 h-[72px] hover:border-[#3f3f46] transition-colors cursor-help">
                             <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">52w Range</p>
                             <RangeBar 
                                 low={stockData["52wLow"]} 
@@ -632,7 +628,7 @@ export default function StockPage() {
 
                     {/* Market Cap Block */}
                     <Tooltip text="Total market capitalization and circulating supply">
-                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 hover:border-[#3f3f46] transition-colors cursor-help">
+                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 h-[72px] hover:border-[#3f3f46] transition-colors cursor-help">
                             <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">Market Cap</p>
                             <p className="text-lg font-bold text-[#f5f5f5]">{stockData.marketCap ? `$${formatVolume(stockData.marketCap)}` : '—'}</p>
                         </div>
@@ -640,7 +636,7 @@ export default function StockPage() {
 
                     {/* Sentiment Block */}
                     <Tooltip text="Based on aggregated tick-level microstructure signals">
-                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 hover:border-[#3f3f46] transition-colors cursor-help">
+                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 h-[72px] hover:border-[#3f3f46] transition-colors cursor-help">
                             <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">Sentiment</p>
                             <p className={`text-sm font-bold ${
                                 stockData.sentiment === 'Bullish' ? 'text-[#3DD68C]' : 
@@ -654,149 +650,132 @@ export default function StockPage() {
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════ */}
-            {/* CHART SECTION */}
+            {/* CHART + TRADING SIDEBAR - Two Column Layout */}
             {/* ═══════════════════════════════════════════════════════════════════ */}
-            {stockData ? (
-                <div className="space-y-2">
-                    {/* Interval Selector */}
-                    <div className="flex items-center gap-1">
-                        {(["1H", "4H", "1D", "1W", "1M", "MAX"] as ChartInterval[]).map((interval) => (
-                            <button
-                                key={interval}
-                                onClick={() => setChartInterval(interval)}
-                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                    chartInterval === interval 
-                                        ? 'bg-orange-500 text-white' 
-                                        : 'bg-[#27272a] text-[rgba(255,255,255,0.5)] hover:bg-[#3f3f46]'
-                                }`}
-                            >
-                                {interval}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Chart Container - Reduced height */}
-                    <div className="w-full h-[280px] bg-[#131722] rounded-lg border border-[#27272a] overflow-hidden">
-                        <ChartComponent priceHistory={priceHistory} historicalCandles={stockData.historicalCandles} />
-                    </div>
-                </div>
-            ) : (
-                <div className="flex items-center justify-center h-[280px] bg-[#0f1015] rounded-lg border border-[#27272a]">
-                    <div className="text-center space-y-2">
-                        <div className="animate-spin w-6 h-6 border-3 border-orange-500 border-t-transparent rounded-full mx-auto"></div>
-                        <p className="text-[rgba(255,255,255,0.5)] text-sm">Loading...</p>
-                    </div>
-                </div>
-            )}
-
-            {/* ═══════════════════════════════════════════════════════════════════ */}
-            {/* ORDERBOOK + PERFORMANCE + TRADE ACTIONS - All in one row */}
-            {/* ═══════════════════════════════════════════════════════════════════ */}
-            {stockData && (
-                <div className="grid grid-cols-12 gap-3">
-                    {/* Orderbook Card - Compact */}
-                    <div className="col-span-4 bg-[#0f1015] border border-[#27272a] rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                            <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider">Orderbook</p>
-                            <span className="text-[9px] text-[rgba(255,255,255,0.4)]">Spread: ${stockData.spread.toFixed(2)}</span>
-                        </div>
-                        <div className="flex gap-4 mb-2">
-                            <div>
-                                <p className="text-[9px] text-[rgba(255,255,255,0.4)]">Bid</p>
-                                <p className="text-lg font-bold text-[#3DD68C]">${stockData.bid.toFixed(2)}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4">
+                {/* LEFT COLUMN: Chart */}
+                <div className="flex flex-col">
+                    {stockData ? (
+                        <>
+                            {/* Chart Container - flex-1 to fill available height */}
+                            <div className="w-full flex-1 min-h-[400px] bg-[#131722] rounded-lg border border-[#27272a] overflow-hidden">
+                                <ChartComponent priceHistory={priceHistory} historicalCandles={stockData.historicalCandles} />
                             </div>
-                            <div>
-                                <p className="text-[9px] text-[rgba(255,255,255,0.4)]">Ask</p>
-                                <p className="text-lg font-bold text-[#FF5C5C]">${stockData.ask.toFixed(2)}</p>
-                            </div>
-                        </div>
-                        <MarketDepthBar bidPercent={stockData.priceChange >= 0 ? 58 : 42} />
-                    </div>
-
-                    {/* Performance - Compact */}
-                    <div className="col-span-3 bg-[#0f1015] border border-[#27272a] rounded-lg p-3">
-                        <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-2">Performance</p>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                            {Object.entries(stockData.performance).map(([period, value]) => (
-                                <div key={period} className="flex justify-between items-baseline">
-                                    <span className="text-[10px] text-[rgba(255,255,255,0.4)] uppercase">{period}</span>
-                                    <span className={`text-xs font-bold ${value >= 0 ? 'text-[#3DD68C]' : 'text-[#FF5C5C]'}`}>
-                                        {value >= 0 ? '+' : ''}{value.toFixed(1)}%
-                                    </span>
+                            
+                            {/* Controls below chart: Interval on left, Info on right */}
+                            <div className="flex items-center justify-between mt-2">
+                                {/* Interval Selector */}
+                                <div className="flex items-center gap-1">
+                                    {(["1H", "4H", "1D", "1W", "1M", "MAX"] as ChartInterval[]).map((interval) => (
+                                        <button
+                                            key={interval}
+                                            onClick={() => setChartInterval(interval)}
+                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                                chartInterval === interval 
+                                                    ? 'bg-orange-500 text-white' 
+                                                    : 'bg-[#27272a] text-[rgba(255,255,255,0.5)] hover:bg-[#3f3f46]'
+                                            }`}
+                                        >
+                                            {interval}
+                                        </button>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Trade Actions - Compact */}
-                    <div className="col-span-5 flex flex-col gap-2">
-                        <div className="flex gap-2">
-                            <button
-                                disabled
-                                className="flex-1 bg-gradient-to-r from-[#3DD68C] to-[#2fb377] text-white text-sm font-bold py-2.5 rounded-lg opacity-50 cursor-not-allowed"
-                            >
-                                Buy
-                            </button>
-                            <button
-                                disabled
-                                className="flex-1 bg-[#27272a] text-[#f5f5f5] text-sm font-bold py-2.5 rounded-lg opacity-50 cursor-not-allowed"
-                            >
-                                Sell
-                            </button>
-                        </div>
-                        <button
-                            onClick={() => router.push('/stock/chain')}
-                            className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white text-sm font-bold py-2.5 rounded-lg hover:opacity-90 transition-opacity shadow-lg"
-                        >
-                            Trade Options →
-                        </button>
-                        <button
-                            onClick={() => setShowPriceAlert(true)}
-                            className="w-full bg-[#27272a] hover:bg-[#3f3f46] text-[#f5f5f5] text-xs font-medium py-2 rounded-lg transition-colors border border-[#3f3f46]"
-                        >
-                            🔔 Set Price Alert
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Price Alert Modal */}
-            {showPriceAlert && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowPriceAlert(false)}>
-                    <div className="bg-[#0f1015] border border-[#27272a] rounded-2xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center">
-                            <h3 className="text-lg font-semibold text-[#f5f5f5]">Set Price Alert</h3>
-                            <button onClick={() => setShowPriceAlert(false)} className="text-[rgba(255,255,255,0.5)] hover:text-[#f5f5f5]">✕</button>
-                        </div>
-                        <p className="text-sm text-[rgba(255,255,255,0.5)]">Get notified when {stock.symbol} reaches your target price.</p>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-xs text-[rgba(255,255,255,0.5)] mb-1 block">Alert when price is</label>
-                                <select className="w-full bg-[#27272a] border border-[#3f3f46] rounded-lg px-3 py-2 text-[#f5f5f5] text-sm">
-                                    <option>Above</option>
-                                    <option>Below</option>
-                                </select>
+                                
+                                {/* Exchange/Oracle/Time info */}
+                                <div className="flex items-center gap-2 text-[10px] text-[rgba(255,255,255,0.4)]">
+                                    <span>{stockData.dex || 'DEX'}</span>
+                                    <span className="text-[#3f3f46]">•</span>
+                                    <span>{stockData.source === 'bitquery' ? 'Bitquery' : 'Internal'}</span>
+                                    <span className="text-[#3f3f46]">•</span>
+                                    <span>{lastUpdateTime ? lastUpdateTime.toLocaleTimeString() : '—'}</span>
+                                    {stockData.stale && <span className="text-yellow-500 ml-1">⚠</span>}
+                                </div>
                             </div>
-                            <div>
-                                <label className="text-xs text-[rgba(255,255,255,0.5)] mb-1 block">Target Price (USDC)</label>
-                                <input 
-                                    type="number" 
-                                    placeholder={stockData?.currentPrice.toFixed(2)}
-                                    className="w-full bg-[#27272a] border border-[#3f3f46] rounded-lg px-3 py-2 text-[#f5f5f5] text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                />
+                        </>
+                    ) : (
+                        <div className="flex items-center justify-center flex-1 min-h-[400px] bg-[#0f1015] rounded-lg border border-[#27272a]">
+                            <div className="text-center space-y-2">
+                                <div className="animate-spin w-6 h-6 border-3 border-orange-500 border-t-transparent rounded-full mx-auto"></div>
+                                <p className="text-[rgba(255,255,255,0.5)] text-sm">Loading chart...</p>
                             </div>
                         </div>
-                        <div className="flex gap-3 pt-2">
-                            <button onClick={() => setShowPriceAlert(false)} className="flex-1 bg-[#27272a] text-[#f5f5f5] py-3 rounded-xl font-medium hover:bg-[#3f3f46] transition-colors">
-                                Cancel
-                            </button>
-                            <button onClick={() => { alert('Price alert set! (Demo)'); setShowPriceAlert(false); }} className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-medium hover:opacity-90 transition-opacity">
-                                Set Alert
-                            </button>
-                        </div>
-                    </div>
+                    )}
                 </div>
-            )}
+
+                {/* RIGHT COLUMN: Trading Sidebar */}
+                <div className="flex flex-col gap-3">
+                    {stockData ? (
+                        <>
+                            {/* Orderbook Card */}
+                            <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[10px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider font-medium">Orderbook</p>
+                                    <span className="text-[10px] text-[rgba(255,255,255,0.4)]">Spread: ${stockData.spread.toFixed(2)}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 mb-3">
+                                    <div>
+                                        <p className="text-[10px] text-[rgba(255,255,255,0.4)] mb-1">Bid</p>
+                                        <p className="text-xl font-bold text-[#3DD68C]">${stockData.bid.toFixed(2)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] text-[rgba(255,255,255,0.4)] mb-1">Ask</p>
+                                        <p className="text-xl font-bold text-[#FF5C5C]">${stockData.ask.toFixed(2)}</p>
+                                    </div>
+                                </div>
+                                <MarketDepthBar bidPercent={stockData.priceChange >= 0 ? 58 : 42} />
+                            </div>
+
+                            {/* Performance Card - flex-1 to fill space */}
+                            <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-4 flex-1">
+                                <p className="text-[10px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider font-medium mb-3">Performance</p>
+                                <div className="space-y-2">
+                                    {Object.entries(stockData.performance).map(([period, value]) => (
+                                        <div key={period} className="flex justify-between items-center">
+                                            <span className="text-xs text-[rgba(255,255,255,0.5)] uppercase">{period}</span>
+                                            <span className={`text-sm font-bold ${value >= 0 ? 'text-[#3DD68C]' : 'text-[#FF5C5C]'}`}>
+                                                {value >= 0 ? '+' : ''}{value.toFixed(2)}%
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Trade Actions */}
+                            <div className="space-y-2">
+                                <button
+                                    disabled
+                                    className="w-full bg-gradient-to-r from-[#3DD68C] to-[#2fb377] text-white text-base font-bold py-3 rounded-lg opacity-50 cursor-not-allowed"
+                                >
+                                    Buy {stock.symbol}
+                                </button>
+                                <button
+                                    disabled
+                                    className="w-full bg-[#27272a] text-[#f5f5f5] text-base font-bold py-3 rounded-lg opacity-50 cursor-not-allowed"
+                                >
+                                    Sell {stock.symbol}
+                                </button>
+                                <button
+                                    onClick={() => router.push('/stock/chain')}
+                                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white text-base font-bold py-3 rounded-lg hover:opacity-90 transition-opacity shadow-lg"
+                                >
+                                    Trade Options →
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            {/* Loading skeleton */}
+                            <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-4 h-[140px] animate-pulse" />
+                            <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-4 flex-1 min-h-[120px] animate-pulse" />
+                            <div className="space-y-2">
+                                <div className="bg-[#27272a] h-12 rounded-lg animate-pulse" />
+                                <div className="bg-[#27272a] h-12 rounded-lg animate-pulse" />
+                                <div className="bg-[#27272a] h-12 rounded-lg animate-pulse" />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* ═══════════════════════════════════════════════════════════════════ */}
             {/* POSITION SECTION */}
@@ -830,8 +809,13 @@ export default function StockPage() {
                 {/* Tab Content */}
                 {activeTab === 'active' && (
                     <div>
-                        {activePositions.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {isLoadingPositions ? (
+                            <div className="text-center py-16 bg-[#0f1015] rounded-xl border border-[#27272a]">
+                                <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                                <p className="text-[rgba(255,255,255,0.5)]">Loading positions...</p>
+                            </div>
+                        ) : activePositions.length > 0 ? (
+                            <div className="space-y-4 overflow-x-auto">
                                 {activePositions.map((pos) => {
                                     const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString();
                                     return (

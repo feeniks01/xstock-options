@@ -8,8 +8,12 @@ export interface XStock {
     priceMint?: PublicKey; // Mainnet mint address for fetching real price data from Bitquery
 }
 
-export const MOCK_MINT = new PublicKey("6a57JJHxnTkbb6YDWmZPtWirFpfdxLcpNqeD5zqjziiD");
-export const QUOTE_MINT = new PublicKey("5AuU5y36pg19rnVoXepsVXcoeQiX36hvAk2EGcBhktbp"); // Devnet USDC
+// Mock NVIDIA xStock mint for on-chain operations (devnet)
+export const MOCK_MINT = new PublicKey("D2MsPh8dQcuVwr1L1KZBs6BPkfBG9w4Bn4S5iEbc7iaR");
+
+// Test USDC mint for on-chain operations (devnet)
+export const QUOTE_MINT = new PublicKey("8vjUztAfre5RaJtHSUwv6VSBGJMsQe2FVXcofohvtMZ");
+export const QUOTE_LOGO = "/usdc_logo.png"; // Local USDC logo
 
 // Real NVDAx mainnet mint for price data
 export const NVDA_MAINNET_MINT = new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh");
@@ -20,7 +24,7 @@ export const XSTOCKS_DEVNET: XStock[] = [
         name: "NVIDIA xStock",
         mint: MOCK_MINT, // Devnet mock mint for on-chain operations
         priceMint: NVDA_MAINNET_MINT, // Real NVDAx for Bitquery price data
-        logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/684961bfb45e3c4d777b9997_Ticker%3DNVDA%2C%20Company%20Name%3DNVIDIA%20Corp%2C%20size%3D256x256.svg"
+        logo: "/nvidiax_logo.png" // Local asset
     }
 ];
 

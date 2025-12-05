@@ -74,16 +74,17 @@ query TradesInRange($mintAddress: String!, $since: DateTime!) {
   }
 }`;
 
-// Volume query for 24h stats
+// Volume query for 24h stats - using buy side volume for more accurate calculation
 const VOLUME_QUERY = `
 query VolumeData($mintAddress: String!, $since: DateTime!) {
-  Solana(dataset: combined) {
+  Solana {
     DEXTradeByTokens(
       where: {
         Block: { Time: { since: $since } }
         Transaction: { Result: { Success: true } }
         Trade: {
           Currency: { MintAddress: { is: $mintAddress } }
+          PriceAsymmetry: { lt: 0.1 }
         }
       }
     ) {
@@ -94,8 +95,33 @@ query VolumeData($mintAddress: String!, $since: DateTime!) {
           Symbol
         }
       }
-      traded_volume_USD: sum(of: Trade_Side_AmountInUSD)
-      traded_volume: sum(of: Trade_Amount)
+      traded_volume_in_usd: sum(of: Trade_AmountInUSD)
+      trade_count: count
+    }
+  }
+}`;
+
+// Token supply query for market cap calculation
+const SUPPLY_QUERY = `
+query TokenSupply($mintAddress: String!) {
+  Solana {
+    TokenSupplyUpdates(
+      limit: { count: 1 }
+      orderBy: { descending: Block_Time }
+      where: {
+        TokenSupplyUpdate: {
+          Currency: { MintAddress: { is: $mintAddress } }
+        }
+      }
+    ) {
+      TokenSupplyUpdate {
+        Currency {
+          Name
+          Symbol
+          Decimals
+        }
+        PostBalance
+      }
     }
   }
 }`;
@@ -177,6 +203,74 @@ function calculateVolatility(high: number, low: number, current: number): "Low" 
     if (range > 5) return "High";
     if (range > 2) return "Medium";
     return "Low";
+}
+
+/**
+ * Calculate Historical Volatility from price data
+ * Uses log returns and annualized standard deviation
+ * @param prices Array of prices (chronological order, oldest first)
+ * @param period Number of periods to use (default: all available)
+ * @returns Annualized volatility as a decimal (e.g., 0.35 = 35%)
+ */
+function calculateHistoricalVolatility(prices: number[], period?: number): number {
+    if (prices.length < 2) return 0.35; // Default fallback
+    
+    const data = period ? prices.slice(-period) : prices;
+    if (data.length < 2) return 0.35;
+    
+    // Calculate log returns
+    const logReturns: number[] = [];
+    for (let i = 1; i < data.length; i++) {
+        if (data[i] > 0 && data[i-1] > 0) {
+            logReturns.push(Math.log(data[i] / data[i-1]));
+        }
+    }
+    
+    if (logReturns.length < 2) return 0.35;
+    
+    // Calculate mean of log returns
+    const mean = logReturns.reduce((a, b) => a + b, 0) / logReturns.length;
+    
+    // Calculate variance
+    const variance = logReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / (logReturns.length - 1);
+    
+    // Standard deviation of returns
+    const stdDev = Math.sqrt(variance);
+    
+    // Annualize: multiply by sqrt(periods per year)
+    // Assuming daily data: sqrt(252 trading days)
+    // For hourly: sqrt(252 * 6.5) ≈ sqrt(1638)
+    // For 15-min: sqrt(252 * 6.5 * 4) ≈ sqrt(6552)
+    // We'll use a general factor based on data frequency
+    const periodsPerDay = 24 * 60 / 15; // Assuming ~15 min average interval
+    const annualizationFactor = Math.sqrt(252 * periodsPerDay);
+    
+    const annualizedVol = stdDev * annualizationFactor;
+    
+    // Clamp to reasonable range (5% to 200%)
+    return Math.max(0.05, Math.min(2.0, annualizedVol));
+}
+
+/**
+ * Calculate volatility metrics including different lookback periods
+ */
+function calculateVolatilityMetrics(candles: { close: number }[]): {
+    hv20: number;  // 20-period HV
+    hv60: number;  // 60-period HV
+    hvAll: number; // All available data
+    hvWeighted: number; // Weighted average for IV estimate
+} {
+    const prices = candles.map(c => c.close);
+    
+    const hv20 = calculateHistoricalVolatility(prices, 20);
+    const hv60 = calculateHistoricalVolatility(prices, 60);
+    const hvAll = calculateHistoricalVolatility(prices);
+    
+    // Weighted average: recent volatility matters more
+    // 50% recent (20-period), 30% medium (60-period), 20% long-term
+    const hvWeighted = hv20 * 0.5 + hv60 * 0.3 + hvAll * 0.2;
+    
+    return { hv20, hv60, hvAll, hvWeighted };
 }
 
 export async function GET(request: NextRequest) {
@@ -262,11 +356,35 @@ export async function GET(request: NextRequest) {
                 since: yesterday 
             });
             const volumeInfo = volumeData?.Solana?.DEXTradeByTokens?.[0];
-            if (volumeInfo?.traded_volume_USD) {
-                volume24h = Math.round(volumeInfo.traded_volume_USD);
+            if (volumeInfo?.traded_volume_in_usd) {
+                volume24h = volumeInfo.traded_volume_in_usd;
             }
         } catch (e) {
             console.warn('Failed to fetch volume data:', e);
+        }
+
+        // If volume query failed or returned 0, calculate from trades
+        if (volume24h === 0) {
+            const yesterdayTs = now - 24 * 60 * 60 * 1000;
+            volume24h = validTrades
+                .filter((t: any) => t.timestamp >= yesterdayTs)
+                .reduce((sum: number, t: any) => sum + (t.amountUSD || 0), 0);
+        }
+
+        // Fetch token supply for market cap
+        let circulatingSupply: number | null = null;
+        let marketCap: number | null = null;
+        
+        try {
+            const supplyData = await fetchBitquery(SUPPLY_QUERY, { mintAddress });
+            const supplyInfo = supplyData?.Solana?.TokenSupplyUpdates?.[0]?.TokenSupplyUpdate;
+            if (supplyInfo?.PostBalance) {
+                const decimals = supplyInfo.Currency?.Decimals || 6;
+                circulatingSupply = supplyInfo.PostBalance / Math.pow(10, decimals);
+                marketCap = circulatingSupply * currentPrice;
+            }
+        } catch (e) {
+            console.warn('Failed to fetch supply data:', e);
         }
 
         // Build historical candles based on interval config
@@ -327,6 +445,9 @@ export async function GET(request: NextRequest) {
             .reverse()
             .map((t: any) => t.price);
 
+        // Calculate Historical Volatility from candles
+        const volatilityMetrics = calculateVolatilityMetrics(filledCandles);
+
         // Calculate bid/ask spread estimate
         const spreadBps = 10;
         const spread = currentPrice * (spreadBps / 10000);
@@ -355,8 +476,8 @@ export async function GET(request: NextRequest) {
             timestamp: validTrades[0].time,
             
             // Market metrics
-            marketCap: null,
-            circulatingSupply: null,
+            marketCap,
+            circulatingSupply,
             
             // 52-week range (estimated)
             "52wHigh": sessionHigh * 1.3,
@@ -393,6 +514,14 @@ export async function GET(request: NextRequest) {
             // Sentiment
             sentiment: calculateSentiment(priceChangePct),
             volatility: calculateVolatility(sessionHigh, sessionLow, currentPrice),
+            
+            // Historical Volatility metrics for options pricing
+            historicalVolatility: {
+                hv20: volatilityMetrics.hv20,    // 20-period HV
+                hv60: volatilityMetrics.hv60,    // 60-period HV
+                hvAll: volatilityMetrics.hvAll,  // Full period HV
+                baseIV: volatilityMetrics.hvWeighted, // Weighted average for IV
+            },
             
             // Legacy fields
             price: currentPrice,

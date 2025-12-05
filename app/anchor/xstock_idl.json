@@ -1,400 +1,465 @@
 {
-    "version": "0.1.0",
-    "name": "xstock_options",
+    "address": "9SPZCWiT2xcYA7DDZTpSbhGFdDugSr9VqeQ7PVFBFgN",
+    "metadata": {
+      "name": "xstock_options",
+      "version": "0.1.0",
+      "spec": "0.1.0",
+      "description": "Created with Anchor"
+    },
     "instructions": [
-        {
-            "name": "createCoveredCall",
-            "discriminator": [
-                254,
-                126,
-                83,
-                68,
-                28,
-                25,
-                140,
-                190
-            ],
-            "accounts": [
+      {
+        "name": "buy_option",
+        "discriminator": [
+          242,
+          253,
+          221,
+          183,
+          67,
+          244,
+          140,
+          119
+        ],
+        "accounts": [
+          {
+            "name": "buyer",
+            "writable": true,
+            "signer": true
+          },
+          {
+            "name": "covered_call",
+            "writable": true
+          },
+          {
+            "name": "buyer_quote_account",
+            "writable": true
+          },
+          {
+            "name": "payment_account",
+            "writable": true
+          },
+          {
+            "name": "token_program",
+            "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          }
+        ],
+        "args": []
+      },
+      {
+        "name": "cancel_listing",
+        "discriminator": [
+          41,
+          183,
+          50,
+          232,
+          230,
+          233,
+          157,
+          70
+        ],
+        "accounts": [
+          {
+            "name": "signer",
+            "writable": true,
+            "signer": true
+          },
+          {
+            "name": "covered_call",
+            "writable": true
+          }
+        ],
+        "args": []
+      },
+      {
+        "name": "create_covered_call",
+        "discriminator": [
+          254,
+          126,
+          83,
+          68,
+          28,
+          25,
+          140,
+          190
+        ],
+        "accounts": [
+          {
+            "name": "seller",
+            "writable": true,
+            "signer": true
+          },
+          {
+            "name": "xstock_mint"
+          },
+          {
+            "name": "quote_mint"
+          },
+          {
+            "name": "covered_call",
+            "writable": true,
+            "pda": {
+              "seeds": [
                 {
-                    "name": "seller",
-                    "isMut": true,
-                    "isSigner": true
+                  "kind": "const",
+                  "value": [
+                    99,
+                    111,
+                    118,
+                    101,
+                    114,
+                    101,
+                    100,
+                    95,
+                    99,
+                    97,
+                    108,
+                    108
+                  ]
                 },
                 {
-                    "name": "xstockMint",
-                    "isMut": false,
-                    "isSigner": false
+                  "kind": "account",
+                  "path": "seller"
                 },
                 {
-                    "name": "quoteMint",
-                    "isMut": false,
-                    "isSigner": false
+                  "kind": "account",
+                  "path": "xstock_mint"
                 },
                 {
-                    "name": "coveredCall",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "sellerXstockAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vaultAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "systemProgram",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "tokenProgram",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "rent",
-                    "isMut": false,
-                    "isSigner": false
+                  "kind": "arg",
+                  "path": "uid"
                 }
-            ],
-            "args": [
-                {
-                    "name": "strike",
-                    "type": "u64"
-                },
-                {
-                    "name": "premium",
-                    "type": "u64"
-                },
-                {
-                    "name": "expiryTs",
-                    "type": "i64"
-                }
-            ]
-        },
-        {
-            "name": "buyOption",
-            "discriminator": [
-                242,
-                253,
-                221,
-                183,
-                67,
-                244,
-                140,
-                119
-            ],
-            "accounts": [
-                {
-                    "name": "buyer",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "coveredCall",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "buyerQuoteAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "sellerQuoteAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "tokenProgram",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": []
-        },
-        {
-            "name": "exercise",
-            "discriminator": [
-                144,
-                79,
-                103,
-                64,
-                241,
-                78,
-                80,
-                174
-            ],
-            "accounts": [
-                {
-                    "name": "buyer",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "coveredCall",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vaultAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "buyerXstockAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "xstockMint",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "buyerQuoteAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "sellerQuoteAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "tokenProgram",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": []
-        },
-        {
-            "name": "reclaim",
-            "discriminator": [
-                44,
-                177,
-                236,
-                249,
-                145,
-                109,
-                163,
-                186
-            ],
-            "accounts": [
-                {
-                    "name": "seller",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "coveredCall",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "vaultAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "sellerXstockAccount",
-                    "isMut": true,
-                    "isSigner": false
-                },
-                {
-                    "name": "xstockMint",
-                    "isMut": false,
-                    "isSigner": false
-                },
-                {
-                    "name": "tokenProgram",
-                    "isMut": false,
-                    "isSigner": false
-                }
-            ],
-            "args": []
-        },
-        {
-            "name": "listForSale",
-            "discriminator": [
-                100,
-                200,
-                100,
-                200,
-                100,
-                200,
-                100,
-                200
-            ],
-            "accounts": [
-                {
-                    "name": "seller",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "coveredCall",
-                    "isMut": true,
-                    "isSigner": false
-                }
-            ],
-            "args": [
-                {
-                    "name": "price",
-                    "type": "u64"
-                }
-            ]
-        },
-        {
-            "name": "cancelListing",
-            "discriminator": [
-                101,
-                201,
-                101,
-                201,
-                101,
-                201,
-                101,
-                201
-            ],
-            "accounts": [
-                {
-                    "name": "seller",
-                    "isMut": true,
-                    "isSigner": true
-                },
-                {
-                    "name": "coveredCall",
-                    "isMut": true,
-                    "isSigner": false
-                }
-            ],
-            "args": []
-        }
-    ],
-    "types": [
-        {
-            "name": "CoveredCall",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "seller",
-                        "type": "pubkey"
-                    },
-                    {
-                        "name": "buyer",
-                        "type": {
-                            "option": "pubkey"
-                        }
-                    },
-                    {
-                        "name": "xstockMint",
-                        "type": "pubkey"
-                    },
-                    {
-                        "name": "quoteMint",
-                        "type": "pubkey"
-                    },
-                    {
-                        "name": "strike",
-                        "type": "u64"
-                    },
-                    {
-                        "name": "premium",
-                        "type": "u64"
-                    },
-                    {
-                        "name": "expiryTs",
-                        "type": "i64"
-                    },
-                    {
-                        "name": "exercised",
-                        "type": "bool"
-                    },
-                    {
-                        "name": "buyerExercised",
-                        "type": "bool"
-                    },
-                    {
-                        "name": "cancelled",
-                        "type": "bool"
-                    },
-                    {
-                        "name": "isListed",
-                        "type": "bool"
-                    },
-                    {
-                        "name": "askPrice",
-                        "type": "u64"
-                    }
-                ]
+              ]
             }
-        }
+          },
+          {
+            "name": "seller_xstock_account",
+            "writable": true
+          },
+          {
+            "name": "vault_account",
+            "writable": true,
+            "pda": {
+              "seeds": [
+                {
+                  "kind": "const",
+                  "value": [
+                    118,
+                    97,
+                    117,
+                    108,
+                    116
+                  ]
+                },
+                {
+                  "kind": "account",
+                  "path": "covered_call"
+                }
+              ]
+            }
+          },
+          {
+            "name": "system_program",
+            "address": "11111111111111111111111111111111"
+          },
+          {
+            "name": "token_program",
+            "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          },
+          {
+            "name": "rent",
+            "address": "SysvarRent111111111111111111111111111111111"
+          }
+        ],
+        "args": [
+          {
+            "name": "uid",
+            "type": "u64"
+          },
+          {
+            "name": "strike",
+            "type": "u64"
+          },
+          {
+            "name": "premium",
+            "type": "u64"
+          },
+          {
+            "name": "expiry_ts",
+            "type": "i64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      },
+      {
+        "name": "exercise",
+        "discriminator": [
+          144,
+          79,
+          103,
+          64,
+          241,
+          78,
+          80,
+          174
+        ],
+        "accounts": [
+          {
+            "name": "buyer",
+            "writable": true,
+            "signer": true
+          },
+          {
+            "name": "covered_call",
+            "writable": true
+          },
+          {
+            "name": "vault_account",
+            "writable": true,
+            "pda": {
+              "seeds": [
+                {
+                  "kind": "const",
+                  "value": [
+                    118,
+                    97,
+                    117,
+                    108,
+                    116
+                  ]
+                },
+                {
+                  "kind": "account",
+                  "path": "covered_call"
+                }
+              ]
+            }
+          },
+          {
+            "name": "buyer_xstock_account",
+            "writable": true
+          },
+          {
+            "name": "buyer_quote_account",
+            "writable": true
+          },
+          {
+            "name": "seller_quote_account",
+            "writable": true
+          },
+          {
+            "name": "token_program",
+            "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          }
+        ],
+        "args": []
+      },
+      {
+        "name": "list_for_sale",
+        "discriminator": [
+          188,
+          214,
+          1,
+          112,
+          93,
+          215,
+          124,
+          207
+        ],
+        "accounts": [
+          {
+            "name": "signer",
+            "writable": true,
+            "signer": true
+          },
+          {
+            "name": "covered_call",
+            "writable": true
+          }
+        ],
+        "args": [
+          {
+            "name": "price",
+            "type": "u64"
+          }
+        ]
+      },
+      {
+        "name": "reclaim",
+        "discriminator": [
+          44,
+          177,
+          236,
+          249,
+          145,
+          109,
+          163,
+          186
+        ],
+        "accounts": [
+          {
+            "name": "seller",
+            "writable": true,
+            "signer": true
+          },
+          {
+            "name": "covered_call",
+            "writable": true
+          },
+          {
+            "name": "vault_account",
+            "writable": true,
+            "pda": {
+              "seeds": [
+                {
+                  "kind": "const",
+                  "value": [
+                    118,
+                    97,
+                    117,
+                    108,
+                    116
+                  ]
+                },
+                {
+                  "kind": "account",
+                  "path": "covered_call"
+                }
+              ]
+            }
+          },
+          {
+            "name": "seller_xstock_account",
+            "writable": true
+          },
+          {
+            "name": "token_program",
+            "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          }
+        ],
+        "args": []
+      }
     ],
     "accounts": [
-        {
-            "name": "CoveredCall",
-            "discriminator": [
-                59,
-                116,
-                243,
-                181,
-                13,
-                157,
-                42,
-                94
-            ]
-        }
+      {
+        "name": "CoveredCall",
+        "discriminator": [
+          59,
+          116,
+          243,
+          181,
+          13,
+          157,
+          42,
+          94
+        ]
+      }
     ],
     "errors": [
-        {
-            "code": 6000,
-            "name": "AlreadySold",
-            "msg": "Option already sold"
-        },
-        {
-            "code": 6001,
-            "name": "OptionCancelled",
-            "msg": "Option cancelled"
-        },
-        {
-            "code": 6002,
-            "name": "OptionExpired",
-            "msg": "Option expired"
-        },
-        {
-            "code": 6003,
-            "name": "OptionNotExpired",
-            "msg": "Option not expired yet"
-        },
-        {
-            "code": 6004,
-            "name": "Unauthorized",
-            "msg": "Caller is not the buyer"
-        },
-        {
-            "code": 6005,
-            "name": "OptionAlreadyExercised",
-            "msg": "Option already exercised or reclaimed"
-        },
-        {
-            "code": 6006,
-            "name": "OptionNotListed",
-            "msg": "Option is not listed for sale"
-        },
-        {
-            "code": 6007,
-            "name": "InsufficientFunds",
-            "msg": "Insufficient funds"
-        }
+      {
+        "code": 6000,
+        "name": "OptionCancelled",
+        "msg": "Option cancelled"
+      },
+      {
+        "code": 6001,
+        "name": "OptionExpired",
+        "msg": "Option expired"
+      },
+      {
+        "code": 6002,
+        "name": "OptionNotExpired",
+        "msg": "Option not expired yet"
+      },
+      {
+        "code": 6003,
+        "name": "Unauthorized",
+        "msg": "Caller is not authorized"
+      },
+      {
+        "code": 6004,
+        "name": "OptionAlreadyExercised",
+        "msg": "Option already exercised or reclaimed"
+      },
+      {
+        "code": 6005,
+        "name": "OptionNotListed",
+        "msg": "Option is not listed for sale"
+      },
+      {
+        "code": 6006,
+        "name": "InvalidPayoutAccount",
+        "msg": "Payout account does not belong to the current owner"
+      }
     ],
-    "metadata": {
-        "address": "9VRMEYvEiKPeGz9N8wVQjvT5qpqcHqNqd31kSYZhop2s"
-    }
-}
+    "types": [
+      {
+        "name": "CoveredCall",
+        "type": {
+          "kind": "struct",
+          "fields": [
+            {
+              "name": "seller",
+              "type": "pubkey"
+            },
+            {
+              "name": "buyer",
+              "type": {
+                "option": "pubkey"
+              }
+            },
+            {
+              "name": "xstock_mint",
+              "type": "pubkey"
+            },
+            {
+              "name": "quote_mint",
+              "type": "pubkey"
+            },
+            {
+              "name": "uid",
+              "type": "u64"
+            },
+            {
+              "name": "strike",
+              "type": "u64"
+            },
+            {
+              "name": "premium",
+              "type": "u64"
+            },
+            {
+              "name": "expiry_ts",
+              "type": "i64"
+            },
+            {
+              "name": "amount",
+              "type": "u64"
+            },
+            {
+              "name": "exercised",
+              "type": "bool"
+            },
+            {
+              "name": "buyer_exercised",
+              "type": "bool"
+            },
+            {
+              "name": "cancelled",
+              "type": "bool"
+            },
+            {
+              "name": "is_listed",
+              "type": "bool"
+            },
+            {
+              "name": "ask_price",
+              "type": "u64"
+            }
+          ]
+        }
+      }
+    ]
+  }
+  

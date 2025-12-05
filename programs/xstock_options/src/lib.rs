@@ -54,7 +54,20 @@ pub mod xstock_options {
 
         // Determine current owner (Seller or Secondary Buyer)
         let current_owner = covered_call.buyer.unwrap_or(covered_call.seller);
+        
+        // Prevent buying your own option
+        require!(ctx.accounts.buyer.key() != current_owner, ErrorCode::CannotBuyOwnOption);
+        
         require!(ctx.accounts.payment_account.owner == current_owner, ErrorCode::InvalidPayoutAccount);
+
+        // Calculate total premium: ask_price is per-share (with 6 decimals), amount is shares (with 6 decimals)
+        // total_premium = ask_price * (amount / 1_000_000)
+        // To avoid precision loss: total_premium = (ask_price * amount) / 1_000_000
+        let total_premium = covered_call.ask_price
+            .checked_mul(covered_call.amount)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(1_000_000)
+            .ok_or(ErrorCode::MathOverflow)?;
 
         let cpi_accounts = Transfer {
             from: ctx.accounts.buyer_quote_account.to_account_info(),
@@ -63,7 +76,7 @@ pub mod xstock_options {
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        token::transfer(cpi_ctx, covered_call.ask_price)?;
+        token::transfer(cpi_ctx, total_premium)?;
 
         covered_call.buyer = Some(ctx.accounts.buyer.key());
         covered_call.is_listed = false; 
@@ -334,4 +347,8 @@ pub enum ErrorCode {
     OptionNotListed,
     #[msg("Payout account does not belong to the current owner")]
     InvalidPayoutAccount,
+    #[msg("Cannot buy your own option")]
+    CannotBuyOwnOption,
+    #[msg("Math overflow")]
+    MathOverflow,
 }
