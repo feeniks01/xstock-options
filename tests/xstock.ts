@@ -166,8 +166,8 @@ describe("xstock_options", () => {
           payer: signer,
           data: {
             name: "NVIDIA xStock Test",
-            symbol: "NVIDIAx Test",
-            uri: "https://raw.githubusercontent.com/solana-developers/opos-asset/main/assets/CompressedCoil/metadata.json",
+            symbol: "NVIDIAx",
+            uri: "https://raw.githubusercontent.com/feeniks01/xstock-options/main/assets/nvidiax_test.json",
             sellerFeeBasisPoints: 0,
             creators: null,
             collection: null,
