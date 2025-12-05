@@ -1,124 +1,172 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { XSTOCKS, MOCK_MINT } from "../utils/constants";
+import { XSTOCKS, MOCK_MINT, XStock } from "../utils/constants";
 import Link from "next/link";
+import Sidebar from "../components/Sidebar";
+import FeaturedMarket from "../components/FeaturedMarket";
+import StockCard from "../components/StockCard";
+import WhatsNew from "../components/WhatsNew";
+import MarketMovers from "../components/MarketMovers";
+import { Zap, TrendingUp, Eye, Clock, Wallet, ChevronDown } from "lucide-react";
 
-export default function DashboardPage() {
-  const wallet = useWallet();
-  const [selectedStock, setSelectedStock] = useState(MOCK_MINT.toBase58());
+// Categorize stocks
+function categorizeStocks(stocks: XStock[]) {
+  const active: XStock[] = [];
+  const trending: XStock[] = [];
+  const mostWatched: XStock[] = [];
+  const comingSoon: XStock[] = [];
 
-  if (!wallet.publicKey) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <p className="text-muted-foreground">Connect your wallet to view stocks</p>
-        </div>
-      </div>
-    );
-  }
+  stocks.forEach((stock) => {
+    const isMock = stock.mint.toString() === MOCK_MINT.toString();
+    
+    if (isMock) {
+      active.push(stock);
+    } else {
+      // Mock categorization - in production, use real data
+      const hash = stock.symbol.charCodeAt(0) + stock.symbol.charCodeAt(stock.symbol.length - 1);
+      
+      if (["AMZNx", "TSLAx", "NVDAx", "METAx", "GOOGLx"].includes(stock.symbol)) {
+        trending.push(stock);
+      } else if (["AAPLx", "MSFTx", "NFLXx", "JPMx", "Vx"].includes(stock.symbol)) {
+        mostWatched.push(stock);
+      } else {
+        comingSoon.push(stock);
+      }
+    }
+  });
+
+  return { active, trending, mostWatched, comingSoon };
+}
+
+interface CategorySectionProps {
+  title: string;
+  icon: React.ReactNode;
+  stocks: XStock[];
+  iconBg: string;
+  defaultExpanded?: boolean;
+}
+
+function CategorySection({ title, icon, stocks, iconBg, defaultExpanded = true }: CategorySectionProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  if (stocks.length === 0) return null;
 
   return (
-    <div className="space-y-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">xOptions</h1>
-        <p className="text-muted-foreground">Select a stock to trade options</p>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {XSTOCKS.map((stock, index) => {
-          const isMock = stock.mint.toString() === MOCK_MINT.toString();
-          const isSelected = selectedStock === stock.mint.toString();
-
-          return (
-            <button
-              key={stock.symbol}
-              onClick={() => {
-                setSelectedStock(stock.mint.toString());
-                if (isMock) {
-                  window.location.href = "/stock";
-                }
-              }}
-              className={`
-                                relative bg-card border rounded-lg p-4 transition-all
-                                ${isSelected ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-border hover:border-muted-foreground/30'}
-                                ${!isMock ? 'opacity-60' : ''}
-                            `}
-            >
-              {index === 0 && (
-                <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">
-                  ACTIVE
-                </div>
-              )}
-              {!isMock && (
-                <div className="absolute -top-2 -right-2 bg-muted text-muted-foreground text-xs font-bold px-2 py-1 rounded">
-                  SOON
-                </div>
-              )}
-
-              <div className="flex flex-col items-center gap-3">
-                {stock.logo && (
-                  <img
-                    src={stock.logo}
-                    alt={stock.name}
-                    className="w-16 h-16 rounded-full"
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      img.style.display = 'none';
-                    }}
-                  />
-                )}
-                <div className="text-center">
-                  <p className="font-bold text-foreground">{stock.symbol}</p>
-                  <p className="text-xs text-muted-foreground truncate mt-1">{stock.name}</p>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {selectedStock && selectedStock !== MOCK_MINT.toString() && (
-        <div className="bg-card border border-border rounded-lg p-8 text-center">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Coming Soon</h2>
-          <p className="text-muted-foreground">
-            Options trading for {XSTOCKS.find(s => s.mint.toString() === selectedStock)?.name} will be available soon.
-          </p>
-          <p className="text-sm text-muted-foreground mt-4">
-            For now, try creating options with <span className="font-semibold text-foreground">Mock Token</span>
-          </p>
-          <Link
-            href="/stock"
-            className="inline-block mt-6 bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-2 rounded-lg transition-colors"
-          >
-            Create Mock Options
-          </Link>
+    <div className="mb-8">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-3 mb-4 group w-full text-left"
+      >
+        <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center`}>
+          {icon}
         </div>
-      )}
-
-      {selectedStock === MOCK_MINT.toString() && (
-        <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-8 text-center">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Mock Token Active</h2>
-          <p className="text-muted-foreground mb-6">
-            Start trading options on the test token
-          </p>
-          <div className="flex gap-4 justify-center">
-            <Link
-              href="/stock"
-              className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-2 rounded-lg transition-colors"
-            >
-              Trade Options
-            </Link>
-            <a
-              href="/stock"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-            >
-              Trade Options
-            </a>
-          </div>
+        <h2 className="text-lg font-semibold text-foreground flex-1">{title}</h2>
+        <span className="text-sm text-muted-foreground">{stocks.length} stocks</span>
+        <ChevronDown
+          className={`w-5 h-5 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
+      </button>
+      
+      {expanded && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {stocks.map((stock) => (
+            <StockCard
+              key={stock.symbol}
+              stock={stock}
+              isActive={stock.mint.toString() === MOCK_MINT.toString()}
+            />
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  const wallet = useWallet();
+  const categories = useMemo(() => categorizeStocks(XSTOCKS), []);
+
+  return (
+    <div className="flex flex-1">
+        {/* Sidebar */}
+        <Sidebar />
+
+        {/* Main Content */}
+        <main className="flex-1 p-6 lg:p-8 overflow-auto">
+          {/* Tagline */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-foreground mb-2">xOptions</h1>
+            <p className="text-muted-foreground">
+              First decentralized options for tokenized equities.
+            </p>
+          </div>
+
+          {/* Quick Actions - Onboarding */}
+          {/* <div className="mb-8">
+            <QuickActions />
+          </div> */}
+
+          {/* Featured Market */}
+          <div className="mb-8 relative z-10">
+            <FeaturedMarket />
+          </div>
+
+          {/* Market Movers + What's New */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="lg:col-span-2">
+              <MarketMovers />
+            </div>
+            <div>
+              <WhatsNew />
+            </div>
+          </div>
+
+          {/* Categorized Stock Grid */}
+          <div id="markets" className="relative z-0">
+            {/* Active Markets */}
+            <CategorySection
+              title="Active Markets"
+              icon={<Zap className="w-[18px] h-[18px] text-green-400" />}
+              iconBg="bg-green-500/20"
+              stocks={categories.active}
+            />
+
+            {/* Trending Stocks */}
+            <CategorySection
+              title="Trending Stocks"
+              icon={<TrendingUp className="w-[18px] h-[18px] text-blue-400" />}
+              iconBg="bg-blue-500/20"
+              stocks={categories.trending}
+            />
+
+            {/* Most Watched */}
+            <CategorySection
+              title="Most Watched"
+              icon={<Eye className="w-[18px] h-[18px] text-orange-400" />}
+              iconBg="bg-orange-500/20"
+              stocks={categories.mostWatched}
+            />
+
+            {/* Coming Soon */}
+            <CategorySection
+              title="Coming Soon"
+              icon={<Clock className="w-[18px] h-[18px] text-muted-foreground" />}
+              iconBg="bg-secondary"
+              stocks={categories.comingSoon}
+              defaultExpanded={false}
+            />
+          </div>
+
+          {/* Connect Wallet Prompt (if not connected) */}
+          {!wallet.publicKey && (
+            <div className="fixed bottom-6 right-6 bg-blue-500 text-white px-6 py-3 rounded-xl shadow-lg shadow-blue-500/25 flex items-center gap-3 animate-bounce">
+              <Wallet className="w-5 h-5" />
+              <span className="font-medium">Connect wallet to start trading</span>
+            </div>
+          )}
+        </main>
+      </div>
   );
 }

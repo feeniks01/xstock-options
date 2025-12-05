@@ -39,12 +39,12 @@ export default function PositionCard({
     // Calculations
     // Market Value: Use Black-Scholes to estimate current value of the option
     const premiumPerShare = calculateOptionPremium(currentPrice, strike, expiry);
-    const marketValue = premiumPerShare * 100;
-    const optionPricePerShare = marketValue / 100;
+    const marketValue = premiumPerShare * 100 * contracts;
+    const optionPricePerShare = premiumPerShare;
 
-    // Cost Basis: The premium stored is already the total premium for the contract
-    const costBasis = premium;
-    const costPerShare = costBasis / 100;
+    // Cost Basis: Premium is stored as per-share price, multiply by shares (100 per contract)
+    const costPerShare = premium;
+    const costBasis = costPerShare * 100 * contracts;
 
     const totalReturn = isSeller
         ? costBasis - marketValue // Seller makes money if market value drops

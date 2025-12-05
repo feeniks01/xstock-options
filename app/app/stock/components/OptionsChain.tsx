@@ -165,16 +165,16 @@ function calculateAdjustedIV(
     if (type === "put") {
         // Put skew: OTM puts have higher IV (crash protection premium)
         if (moneyness < 1) { // OTM put
-            iv *= 1 + moneynessDistance * 0.8; // Up to +40% for deep OTM puts
+            iv *= 1 + moneynessDistance * 4.0; // Significant skew for downside protection
         } else { // ITM put
-            iv *= 1 + moneynessDistance * 0.2;
+            iv *= 1 + moneynessDistance * 1.0;
         }
     } else {
-        // Call skew: slight smile on both sides
+        // Call skew: moderate smile on both sides
         if (moneyness > 1) { // OTM call
-            iv *= 1 + moneynessDistance * 0.3; // Up to +15% for deep OTM calls
+            iv *= 1 + moneynessDistance * 2.0; // OTM calls also have elevated IV
         } else { // ITM call
-            iv *= 1 + moneynessDistance * 0.15;
+            iv *= 1 + moneynessDistance * 0.5;
         }
     }
     

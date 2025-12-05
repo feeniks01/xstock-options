@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AppWalletProvider from "../components/AppWalletProvider";
 import Navbar from "../components/Navbar";
-import TickerTape from "../components/TickerTape";
+import LiveTicker from "../components/LiveTicker";
 import ToastProvider from "../components/ToastProvider";
 
 const geistSans = Geist({
@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "xOptions",
-  description: "Covered Calls for Tokenized Stocks on Solana",
+  title: "xOptions — Decentralized Options for Tokenized Stocks",
+  description: "Trade options on real-world stocks, fully on-chain. Fast, permissionless, cash-settled.",
 };
 
 export default function RootLayout({
@@ -29,14 +29,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <AppWalletProvider>
-          <Navbar />
-          <TickerTape />
-          <main className="container mx-auto p-8">
+          <div className="min-h-screen flex flex-col">
+            <Navbar />
+            <LiveTicker />
             {children}
-          </main>
+          </div>
           <ToastProvider />
         </AppWalletProvider>
       </body>
