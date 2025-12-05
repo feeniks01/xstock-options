@@ -35,8 +35,6 @@ const navItems: NavItem[] = [
     name: "Portfolio",
     href: "/portfolio",
     icon: <Briefcase className="w-5 h-5" />,
-    badge: "Soon",
-    disabled: true,
   },
   {
     name: "Alerts",
