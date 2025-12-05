@@ -37,52 +37,6 @@ function Tooltip({ children, text }: { children: React.ReactNode; text: string }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// MINI SPARKLINE COMPONENT (with animation) - Compact
-// ═══════════════════════════════════════════════════════════════════
-function MiniSparkline({ data, positive }: { data: number[]; positive: boolean }) {
-    const [animate, setAnimate] = useState(false);
-    
-    useEffect(() => {
-        setAnimate(false);
-        const timer = setTimeout(() => setAnimate(true), 50);
-        return () => clearTimeout(timer);
-    }, [data]);
-    
-    if (!data || data.length < 2) return null;
-    
-    const min = Math.min(...data);
-    const max = Math.max(...data);
-    const range = max - min || 1;
-    const width = 60;
-    const height = 20;
-    
-    const points = data.map((val, i) => {
-        const x = (i / (data.length - 1)) * width;
-        const y = height - ((val - min) / range) * height;
-        return `${x},${y}`;
-    }).join(' ');
-    
-    const color = positive ? '#3DD68C' : '#FF5C5C';
-    
-    return (
-        <svg width={width} height={height} className="ml-2">
-            <polyline
-                fill="none"
-                stroke={color}
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={points}
-                style={{
-                    opacity: animate ? 1 : 0.3,
-                    transition: 'opacity 0.2s ease-out, stroke 0.2s ease-out',
-                }}
-            />
-        </svg>
-    );
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // RANGE BAR COMPONENT (52W Range Visual) - Compact
 // ═══════════════════════════════════════════════════════════════════
 function RangeBar({ low, high, current }: { low: number; high: number; current: number }) {
@@ -528,7 +482,7 @@ export default function StockPage() {
                     </div>
                 </div>
 
-                {/* Price Row with Sparkline */}
+                {/* Price Row */}
                 {stockData && (
                     <div className="flex items-center gap-3">
                         <div className="flex items-baseline gap-2">
@@ -540,10 +494,6 @@ export default function StockPage() {
                                 {stockData.priceChange >= 0 ? '+' : ''}{stockData.priceChange.toFixed(2)} ({stockData.priceChangePct >= 0 ? '+' : ''}{stockData.priceChangePct.toFixed(2)}%)
                             </span>
                         </div>
-                        {/* Mini Sparkline with animation */}
-                        {stockData.sparkline && stockData.sparkline.length > 1 && (
-                            <MiniSparkline data={stockData.sparkline} positive={stockData.priceChange >= 0} />
-                        )}
                     </div>
                 )}
             </div>

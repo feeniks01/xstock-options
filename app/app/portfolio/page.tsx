@@ -31,6 +31,7 @@ type PositionData = {
   breakevenPrice: number;
   contractsCount: number;
   avgCostPerShare: number;
+  dateBought?: string; // Date when position was acquired
   delta: number;
   gamma: number;
   theta: number;
@@ -106,14 +107,32 @@ export default function PortfolioPage() {
         ]
       });
 
-      const allCalls = accounts.map(acc => {
+      // Fetch account info to get creation time
+      const accountInfos = await Promise.all(
+        accounts.map(async (acc) => {
+          try {
+            const accountInfo = await connection.getAccountInfo(acc.pubkey);
+            return {
+              account: acc.account,
+              pubkey: acc.pubkey,
+              accountInfo: accountInfo
+            };
+          } catch (e) {
+            return null;
+          }
+        })
+      );
+
+      const allCalls = accountInfos.map((accInfo) => {
+        if (!accInfo) return null;
         try {
-          if (acc.account.data.length < 173) {
+          if (accInfo.account.data.length < 173) {
             return null;
           }
           return {
-            publicKey: acc.pubkey,
-            account: accountClient.coder.accounts.decode("coveredCall", acc.account.data)
+            publicKey: accInfo.pubkey,
+            account: accountClient.coder.accounts.decode("coveredCall", accInfo.account.data),
+            accountInfo: accInfo.accountInfo // Store account info for creation time
           };
         } catch (e) {
           return null;
@@ -121,22 +140,35 @@ export default function PortfolioPage() {
       }).filter(a => a !== null);
 
       // Filter to only show positions for the current stock's mint that belong to the user
-      const positions = allCalls.filter((a: any) =>
-        a.account.xstockMint.toString() === stock.mint.toString() &&
-        (a.account.seller.toString() === wallet.publicKey?.toString() ||
-         a.account.buyer?.toString() === wallet.publicKey?.toString())
-      );
+      // Ownership logic:
+      // - If you're the seller AND there's no buyer → you own it (you wrote it and haven't sold it)
+      // - If you're the buyer → you own it
+      // - If you're the seller AND there's a buyer → you DON'T own it (you sold it to someone else)
+      const positions = allCalls.filter((a: any) => {
+        if (a.account.xstockMint.toString() !== stock.mint.toString()) return false;
+        
+        const isSeller = a.account.seller.toString() === wallet.publicKey?.toString();
+        const isBuyer = a.account.buyer?.toString() === wallet.publicKey?.toString();
+        const hasBuyer = a.account.buyer !== null;
+        
+        // You own it if:
+        // 1. You're the buyer (you bought it)
+        // 2. You're the seller AND there's no buyer (you wrote it and haven't sold it)
+        return isBuyer || (isSeller && !hasBuyer);
+      });
 
       // Filter to only open positions
       const openPositions = positions.filter((pos: any) => {
-        const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString();
+        const isBuyer = pos.account.buyer?.toString() === wallet.publicKey?.toString();
         const isExercised = pos.account.exercised;
         const isExpired = new Date() > new Date(pos.account.expiryTs.toNumber() * 1000);
 
-        if (isSeller) {
-          return !isExercised;
-        } else {
+        if (isBuyer) {
+          // Buyers: show if not exercised and not expired
           return !isExercised && !isExpired;
+        } else {
+          // Sellers (who haven't sold): show if not exercised
+          return !isExercised;
         }
       });
 
@@ -188,9 +220,26 @@ export default function PortfolioPage() {
       ? position.account.amount.toNumber() / (100 * 1_000_000)
       : 1;
     
-    const isSeller = position.account.seller.toString() === wallet.publicKey?.toString();
+    // Determine ownership: buyer takes precedence over seller
+    const isBuyer = position.account.buyer?.toString() === wallet.publicKey?.toString();
+    const isSeller = position.account.seller.toString() === wallet.publicKey?.toString() && !isBuyer;
     const isExercised = position.account.exercised;
     const isExpired = new Date() > expiry;
+    
+    // Get date bought: use account creation time if available
+    let dateBought: string | undefined;
+    if (position.accountInfo) {
+      // Account creation time is not directly available, but we can estimate from rent epoch
+      // For now, we'll try to get it from the account's slot or use a fallback
+      // In a production system, you'd fetch the transaction signature when the account was created
+      try {
+        // Try to get the transaction that created this account
+        // For now, we'll leave it undefined and show "N/A" in the UI
+        // TODO: Fetch creation transaction signature to get accurate date
+      } catch (e) {
+        // Fallback: leave undefined
+      }
+    }
     
     const status: "OPEN" | "EXERCISED" | "EXPIRED" = isExercised ? "EXERCISED" : isExpired ? "EXPIRED" : "OPEN";
 
@@ -278,7 +327,7 @@ export default function PortfolioPage() {
     return {
       symbol: stock.symbol,
       label: `${stock.symbol} $${strike.toFixed(0)} Call`,
-      side: isSeller ? "SELLER" : "BUYER",
+      side: isBuyer ? "BUYER" : "SELLER",
       contracts: contracts,
       status: status,
       optionPrice: optionPricePerShare,
@@ -297,6 +346,7 @@ export default function PortfolioPage() {
       breakevenPrice: breakevenPrice,
       contractsCount: contracts,
       avgCostPerShare: costPerShare,
+      dateBought: dateBought, // Will be undefined for now, shown as "N/A" in UI
       delta: optionPricing.delta,
       gamma: optionPricing.gamma,
       theta: optionPricing.theta,
@@ -440,10 +490,11 @@ export default function PortfolioPage() {
               >
                 {userPositions.map((pos, idx) => {
                   const strike = pos.account.strike.toNumber() / 100_000_000;
-                  const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString();
+                  const isBuyer = pos.account.buyer?.toString() === wallet.publicKey?.toString();
+                  const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString() && !isBuyer;
                   return (
                     <option key={idx} value={idx}>
-                      {stock.symbol} ${strike} Call ({isSeller ? 'SELLER' : 'BUYER'})
+                      {stock.symbol} ${strike} Call ({isBuyer ? 'BUYER' : 'SELLER'})
                     </option>
                   );
                 })}
@@ -563,6 +614,10 @@ export default function PortfolioPage() {
                   <Row label="Contracts" value={displayPosition.contractsCount} />
                   <Row label="Avg cost / share" value={displayPosition.avgCostPerShare} prefix="$" />
                   <Row label="Cost basis" value={displayPosition.costBasis} prefix="$" />
+                  <Row 
+                    label="Date bought" 
+                    valueLabel={displayPosition.dateBought ? new Date(displayPosition.dateBought).toLocaleDateString() : "N/A"} 
+                  />
                   <Row label="Total return" value={displayPosition.totalPnL} prefix="$" valueClass={pnlColor} />
                   <Row label="Total return %" value={displayPosition.totalPnLPct} suffix="%" valueClass={pnlColor} />
                 </div>

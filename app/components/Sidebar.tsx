@@ -7,7 +7,7 @@ import {
   TrendingUp, 
   LayoutGrid, 
   Briefcase, 
-  Bell, 
+  // Bell, 
   Settings,
   ChevronsLeft
 } from "lucide-react";
@@ -36,13 +36,13 @@ const navItems: NavItem[] = [
     href: "/portfolio",
     icon: <Briefcase className="w-5 h-5" />,
   },
-  {
-    name: "Alerts",
-    href: "/alerts",
-    icon: <Bell className="w-5 h-5" />,
-    badge: "Soon",
-    disabled: true,
-  },
+  // {
+  //   name: "Alerts",
+  //   href: "/alerts",
+  //   icon: <Bell className="w-5 h-5" />,
+  //   badge: "Soon",
+  //   disabled: true,
+  // },
   {
     name: "Settings",
     href: "/settings",
