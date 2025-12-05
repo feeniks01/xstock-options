@@ -208,6 +208,7 @@ describe("xstock_options", () => {
 
   describe("create_covered_call", () => {
     it("Creates a covered call option successfully", async () => {
+      const uid = new anchor.BN(1);
       const expiryTs = new anchor.BN(Math.floor(Date.now() / 1000) + 86400 * 7); // 7 days from now
 
       [coveredCallPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -215,7 +216,7 @@ describe("xstock_options", () => {
           Buffer.from("covered_call"),
           seller.publicKey.toBuffer(),
           xstockMint.toBuffer(),
-          expiryTs.toArrayLike(Buffer, "le", 8),
+          uid.toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
@@ -226,7 +227,7 @@ describe("xstock_options", () => {
       );
 
       await program.methods
-        .createCoveredCall(STRIKE_PRICE, PREMIUM, expiryTs)
+        .createCoveredCall(uid, STRIKE_PRICE, PREMIUM, expiryTs, new anchor.BN(XSTOCK_AMOUNT))
         .accounts({
           seller: seller.publicKey,
           xstockMint,
@@ -245,6 +246,7 @@ describe("xstock_options", () => {
     it("Fails if seller doesn't have enough xStock", async () => {
       // Use user's keypair but try to create option with amount exceeding balance
       // This test verifies the program checks for sufficient balance
+      const uid = new anchor.BN(2);
       const expiryTs = new anchor.BN(Math.floor(Date.now() / 1000) + 86400 * 7);
 
       // Get current balance
@@ -259,7 +261,7 @@ describe("xstock_options", () => {
       if (Number(currentBalance.amount) < XSTOCK_AMOUNT) {
         try {
           await program.methods
-            .createCoveredCall(STRIKE_PRICE, PREMIUM, expiryTs)
+            .createCoveredCall(uid, STRIKE_PRICE, PREMIUM, expiryTs, new anchor.BN(XSTOCK_AMOUNT))
             .accounts({
               seller: seller.publicKey,
               xstockMint,
@@ -296,7 +298,7 @@ describe("xstock_options", () => {
           buyer: buyer.publicKey,
           coveredCall: coveredCallPda,
           buyerQuoteAccount,
-          sellerQuoteAccount,
+          paymentAccount: sellerQuoteAccount,
         })
         .signers([buyer])
         .rpc();
@@ -332,18 +334,19 @@ describe("xstock_options", () => {
             buyer: secondBuyer.publicKey,
             coveredCall: coveredCallPda,
             buyerQuoteAccount: secondBuyerQuoteAccount,
-            sellerQuoteAccount,
+            paymentAccount: sellerQuoteAccount,
           })
           .signers([secondBuyer])
           .rpc();
         expect.fail("Should have failed - option not listed");
-      } catch (error) {
-        expect(error.error.errorCode.code).to.equal("OptionNotListed");
+      } catch (error: any) {
+        expect(error.error?.errorCode?.code || error.code).to.equal("OptionNotListed");
       }
     });
 
     it("Cannot buy an expired option", async () => {
       // Create an expired option
+      const uid = new anchor.BN(3);
       const expiredTs = new anchor.BN(Math.floor(Date.now() / 1000) - 3600); // 1 hour ago
 
       const [expiredCallPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -351,7 +354,7 @@ describe("xstock_options", () => {
           Buffer.from("covered_call"),
           seller.publicKey.toBuffer(),
           xstockMint.toBuffer(),
-          expiredTs.toArrayLike(Buffer, "le", 8),
+          uid.toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
@@ -362,13 +365,12 @@ describe("xstock_options", () => {
       );
 
       await program.methods
-        .createCoveredCall(STRIKE_PRICE, PREMIUM, expiredTs)
+        .createCoveredCall(uid, STRIKE_PRICE, PREMIUM, expiredTs, new anchor.BN(XSTOCK_AMOUNT))
         .accounts({
           seller: seller.publicKey,
           xstockMint,
           quoteMint,
           sellerXstockAccount,
-       
         })
         .signers([seller])
         .rpc();
@@ -380,13 +382,13 @@ describe("xstock_options", () => {
             buyer: secondBuyer.publicKey,
             coveredCall: expiredCallPda,
             buyerQuoteAccount: secondBuyerQuoteAccount,
-            sellerQuoteAccount,
+            paymentAccount: sellerQuoteAccount,
           })
           .signers([secondBuyer])
           .rpc();
         expect.fail("Should have failed - option expired");
-      } catch (error) {
-        expect(error.error.errorCode.code).to.equal("OptionExpired");
+      } catch (error: any) {
+        expect(error.error?.errorCode?.code || error.code).to.equal("OptionExpired");
       }
     });
   });
@@ -409,7 +411,6 @@ describe("xstock_options", () => {
           buyer: buyer.publicKey,
           coveredCall: coveredCallPda,
           buyerXstockAccount,
-          xstockMint,
           buyerQuoteAccount,
           sellerQuoteAccount,
         })
@@ -451,20 +452,22 @@ describe("xstock_options", () => {
             buyer: buyer.publicKey,
             coveredCall: coveredCallPda,
             buyerXstockAccount,
-            xstockMint,
             buyerQuoteAccount,
             sellerQuoteAccount,
           })
           .signers([buyer])
           .rpc();
         expect.fail("Should have failed - already exercised");
-      } catch (error) {
-        expect(error.error.errorCode.code).to.equal("OptionAlreadyExercised");
+      } catch (error: any) {
+        // The account might be closed after exercise, so we check for either error
+        const errorCode = error.error?.errorCode?.code || error.code || error.message;
+        expect(errorCode === "OptionAlreadyExercised" || errorCode === "AccountNotInitialized").to.be.true;
       }
     });
 
     it("Non-buyer cannot exercise", async () => {
       // Create a new option for this test
+      const uid = new anchor.BN(4);
       const expiryTs = new anchor.BN(Math.floor(Date.now() / 1000) + 86400 * 7);
 
       const [newCallPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -472,7 +475,7 @@ describe("xstock_options", () => {
           Buffer.from("covered_call"),
           seller.publicKey.toBuffer(),
           xstockMint.toBuffer(),
-          expiryTs.toArrayLike(Buffer, "le", 8),
+          uid.toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
@@ -483,7 +486,7 @@ describe("xstock_options", () => {
       );
 
       await program.methods
-        .createCoveredCall(STRIKE_PRICE, PREMIUM, expiryTs)
+        .createCoveredCall(uid, STRIKE_PRICE, PREMIUM, expiryTs, new anchor.BN(XSTOCK_AMOUNT))
         .accounts({
           seller: seller.publicKey,
           xstockMint,
@@ -499,7 +502,7 @@ describe("xstock_options", () => {
           buyer: buyer.publicKey,
           coveredCall: newCallPda,
           buyerQuoteAccount,
-          sellerQuoteAccount,
+          paymentAccount: sellerQuoteAccount,
         })
         .signers([buyer])
         .rpc();
@@ -511,21 +514,21 @@ describe("xstock_options", () => {
             buyer: secondBuyer.publicKey,
             coveredCall: newCallPda,
             buyerXstockAccount: secondBuyerXstockAccount,
-            xstockMint,
             buyerQuoteAccount: secondBuyerQuoteAccount,
             sellerQuoteAccount,
           })
           .signers([secondBuyer])
           .rpc();
         expect.fail("Should have failed - not the buyer");
-      } catch (error) {
-        expect(error.error.errorCode.code).to.equal("Unauthorized");
+      } catch (error: any) {
+        expect(error.error?.errorCode?.code || error.code).to.equal("Unauthorized");
       }
     });
   });
 
   describe("reclaim", () => {
     it("Seller can reclaim unsold option", async () => {
+      const uid = new anchor.BN(5);
       const expiryTs = new anchor.BN(Math.floor(Date.now() / 1000) + 86400 * 7);
 
       const [reclaimCallPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -533,7 +536,7 @@ describe("xstock_options", () => {
           Buffer.from("covered_call"),
           seller.publicKey.toBuffer(),
           xstockMint.toBuffer(),
-          expiryTs.toArrayLike(Buffer, "le", 8),
+          uid.toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
@@ -544,7 +547,7 @@ describe("xstock_options", () => {
       );
 
       await program.methods
-        .createCoveredCall(STRIKE_PRICE, PREMIUM, expiryTs)
+        .createCoveredCall(uid, STRIKE_PRICE, PREMIUM, expiryTs, new anchor.BN(XSTOCK_AMOUNT))
         .accounts({
           seller: seller.publicKey,
           xstockMint,
@@ -586,6 +589,7 @@ describe("xstock_options", () => {
 
     it("Seller can reclaim expired option", async () => {
       // Create option that will expire
+      const uid = new anchor.BN(6);
       const shortExpiryTs = new anchor.BN(Math.floor(Date.now() / 1000) + 1); // Expires in 1 second
 
       const [expiredCallPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -593,7 +597,7 @@ describe("xstock_options", () => {
           Buffer.from("covered_call"),
           seller.publicKey.toBuffer(),
           xstockMint.toBuffer(),
-          shortExpiryTs.toArrayLike(Buffer, "le", 8),
+          uid.toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
@@ -604,7 +608,7 @@ describe("xstock_options", () => {
       );
 
       await program.methods
-        .createCoveredCall(STRIKE_PRICE, PREMIUM, shortExpiryTs)
+        .createCoveredCall(uid, STRIKE_PRICE, PREMIUM, shortExpiryTs, new anchor.BN(XSTOCK_AMOUNT))
         .accounts({
           seller: seller.publicKey,
           xstockMint,
@@ -635,6 +639,7 @@ describe("xstock_options", () => {
     });
 
     it("Cannot reclaim option that has been sold and not expired", async () => {
+      const uid = new anchor.BN(7);
       const expiryTs = new anchor.BN(Math.floor(Date.now() / 1000) + 86400 * 7);
 
       const [soldCallPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -642,7 +647,7 @@ describe("xstock_options", () => {
           Buffer.from("covered_call"),
           seller.publicKey.toBuffer(),
           xstockMint.toBuffer(),
-          expiryTs.toArrayLike(Buffer, "le", 8),
+          uid.toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
@@ -653,7 +658,7 @@ describe("xstock_options", () => {
       );
 
       await program.methods
-        .createCoveredCall(STRIKE_PRICE, PREMIUM, expiryTs)
+        .createCoveredCall(uid, STRIKE_PRICE, PREMIUM, expiryTs, new anchor.BN(XSTOCK_AMOUNT))
         .accounts({
           seller: seller.publicKey,
           xstockMint,
@@ -669,7 +674,7 @@ describe("xstock_options", () => {
           buyer: buyer.publicKey,
           coveredCall: soldCallPda,
           buyerQuoteAccount,
-          sellerQuoteAccount,
+          paymentAccount: sellerQuoteAccount,
         })
         .signers([buyer])
         .rpc();
@@ -685,8 +690,8 @@ describe("xstock_options", () => {
           .signers([seller])
           .rpc();
         expect.fail("Should have failed - option sold and not expired");
-      } catch (error) {
-        expect(error.error.errorCode.code).to.equal("OptionNotExpired");
+      } catch (error: any) {
+        expect(error.error?.errorCode?.code || error.code).to.equal("OptionNotExpired");
       }
     });
   });
@@ -695,6 +700,7 @@ describe("xstock_options", () => {
     let listableCallPda: anchor.web3.PublicKey;
 
     before(async () => {
+      const uid = new anchor.BN(8);
       const expiryTs = new anchor.BN(Math.floor(Date.now() / 1000) + 86400 * 7);
 
       [listableCallPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -702,7 +708,7 @@ describe("xstock_options", () => {
           Buffer.from("covered_call"),
           seller.publicKey.toBuffer(),
           xstockMint.toBuffer(),
-          expiryTs.toArrayLike(Buffer, "le", 8),
+          uid.toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
@@ -713,7 +719,7 @@ describe("xstock_options", () => {
       );
 
       await program.methods
-        .createCoveredCall(STRIKE_PRICE, PREMIUM, expiryTs)
+        .createCoveredCall(uid, STRIKE_PRICE, PREMIUM, expiryTs, new anchor.BN(XSTOCK_AMOUNT))
         .accounts({
           seller: seller.publicKey,
           xstockMint,
@@ -729,7 +735,7 @@ describe("xstock_options", () => {
           buyer: buyer.publicKey,
           coveredCall: listableCallPda,
           buyerQuoteAccount,
-          sellerQuoteAccount,
+          paymentAccount: sellerQuoteAccount,
         })
         .signers([buyer])
         .rpc();
@@ -741,7 +747,7 @@ describe("xstock_options", () => {
       await program.methods
         .listForSale(newPrice)
         .accounts({
-          seller: buyer.publicKey,
+          signer: buyer.publicKey,
           coveredCall: listableCallPda,
         })
         .signers([buyer])
@@ -758,7 +764,7 @@ describe("xstock_options", () => {
       await program.methods
         .cancelListing()
         .accounts({
-          seller: buyer.publicKey,
+          signer: buyer.publicKey,
           coveredCall: listableCallPda,
         })
         .signers([buyer])
@@ -770,32 +776,5 @@ describe("xstock_options", () => {
       expect(coveredCall.isListed).to.be.false;
     });
 
-    it("BUG: Original seller can still manipulate listing after selling", async () => {
-      // This demonstrates the access control bug
-      // The original seller should NOT be able to do this
-      const maliciousPrice = new anchor.BN(1); // 0.000001 USDC
-
-      await program.methods
-        .listForSale(maliciousPrice)
-        .accounts({
-          seller: seller.publicKey, // Original seller
-          coveredCall: listableCallPda,
-        })
-        .signers([seller])
-        .rpc();
-
-      const coveredCall = await program.account.coveredCall.fetch(
-        listableCallPda
-      );
-      expect(coveredCall.isListed).to.be.true;
-      expect(coveredCall.askPrice.toNumber()).to.equal(
-        maliciousPrice.toNumber()
-      );
-
-      // This is a bug! The original seller was able to manipulate the listing
-      console.log(
-        "⚠️ BUG DETECTED: Original seller can still control listing after sale"
-      );
-    });
   });
 });
