@@ -24,7 +24,7 @@ export default function Navbar() {
                             xOptions
                         </span>
                         <span className="text-xs text-muted-foreground -mt-0.5 hidden sm:block">
-                            Decentralized Options
+                            On-Chain Options
                         </span>
                     </div>
                 </Link>
@@ -47,7 +47,7 @@ export default function Navbar() {
                         Trade
                     </Link>
                     <a
-                        href="https://docs.xoptions.io"
+                        href="https://github.com/feeniks01/xstock-options/blob/main/README.md"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"

@@ -9,7 +9,20 @@ const priceCache = new Map<string, {
     timestamp: number; 
     data: any;
 }>();
-const CACHE_TTL = 8000; // 8 seconds cache
+
+// Interval-specific cache TTLs (in milliseconds)
+// Historical candles change less frequently for longer intervals
+const CACHE_TTL_BY_INTERVAL: Record<string, number> = {
+    '1H': 60 * 1000,        // 1 minute - data changes every minute
+    '4H': 5 * 60 * 1000,    // 5 minutes - data changes every 5 minutes
+    '1D': 15 * 60 * 1000,   // 15 minutes - data changes every 15 minutes
+    '1W': 60 * 60 * 1000,   // 1 hour - data changes hourly
+    '1M': 4 * 60 * 60 * 1000, // 4 hours - data changes every 4 hours
+    'MAX': 24 * 60 * 60 * 1000, // 24 hours - most historical data is static
+};
+
+// Default cache TTL for current price (always keep this short for real-time updates)
+const CURRENT_PRICE_CACHE_TTL = 8000; // 8 seconds
 
 // OAuth token cache
 let accessToken: string | null = null;
@@ -292,11 +305,12 @@ export async function GET(request: NextRequest) {
     const config = INTERVAL_CONFIG[interval] || INTERVAL_CONFIG['1D'];
     const cacheKey = `${mintAddress}-${interval}`;
 
-    // Check cache
+    // Check cache with interval-specific TTL
     const cached = priceCache.get(cacheKey);
     const now = Date.now();
+    const cacheTTL = CACHE_TTL_BY_INTERVAL[interval] || CURRENT_PRICE_CACHE_TTL;
     
-    if (cached && (now - cached.timestamp) < CACHE_TTL) {
+    if (cached && (now - cached.timestamp) < cacheTTL) {
         return NextResponse.json(cached.data);
     }
 

@@ -118,7 +118,7 @@ export default function Sidebar() {
         <div className="p-4 border-t border-border">
           <div className="text-xs text-muted-foreground">
             <p className="font-medium text-foreground/70 mb-1">xOptions v0.1</p>
-            <p>Decentralized Options</p>
+            <p>On-Chain Options</p>
           </div>
         </div>
       )}

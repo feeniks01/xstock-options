@@ -880,6 +880,7 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
     const chartInstance = useRef<Chart | null>(null);
     const lastCandleCount = useRef<number>(0);
     const historicalLoaded = useRef<boolean>(false);
+    const lastHistoricalCandlesRef = useRef<HistoricalCandle[] | undefined>(undefined);
 
     useEffect(() => {
         if (chartContainerRef.current && !chartInstance.current) {
@@ -977,30 +978,46 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
         };
     }, []);
 
-    // Load historical candles from Bitquery on first load
+    // Load historical candles from Bitquery - reload when candles change (e.g., interval change)
     useEffect(() => {
-        if (!chartInstance.current || historicalLoaded.current) return;
+        if (!chartInstance.current) return;
         if (!historicalCandles || historicalCandles.length === 0) return;
 
-        // @ts-ignore
-        chartInstance.current.applyNewData(historicalCandles);
-        lastCandleCount.current = historicalCandles.length;
-        historicalLoaded.current = true;
-        
-        // Calculate bar space to fill the chart width with all candles
-        const chartWidth = chartContainerRef.current?.clientWidth || 800;
-        const dataCount = historicalCandles.length;
-        // Leave some padding (right offset) and calculate space per bar
-        const rightOffset = 50;
-        const availableWidth = chartWidth - rightOffset;
-        // Each bar needs space for the candle + gap between candles
-        const barSpace = Math.max(6, Math.min(12, Math.floor(availableWidth / dataCount)));
-        
-        // @ts-ignore
-        chartInstance.current.setBarSpace(barSpace);
-        // Scroll to show from the beginning
-        // @ts-ignore
-        chartInstance.current.scrollToDataIndex(0);
+        // Check if historical candles have actually changed (different data, not just length)
+        const hasChanged = !lastHistoricalCandlesRef.current || 
+            lastHistoricalCandlesRef.current.length !== historicalCandles.length ||
+            (lastHistoricalCandlesRef.current.length > 0 && historicalCandles.length > 0 &&
+             (lastHistoricalCandlesRef.current[0].timestamp !== historicalCandles[0].timestamp ||
+              lastHistoricalCandlesRef.current[lastHistoricalCandlesRef.current.length - 1].timestamp !== 
+              historicalCandles[historicalCandles.length - 1].timestamp));
+
+        if (hasChanged || !historicalLoaded.current) {
+            // @ts-ignore
+            chartInstance.current.applyNewData(historicalCandles);
+            lastCandleCount.current = historicalCandles.length;
+            historicalLoaded.current = true;
+            lastHistoricalCandlesRef.current = historicalCandles;
+            
+            // Calculate bar space to fill the chart width with all candles
+            const chartWidth = chartContainerRef.current?.clientWidth || 800;
+            const dataCount = historicalCandles.length;
+            // Leave some padding (right offset) and calculate space per bar
+            const rightOffset = 50;
+            const availableWidth = chartWidth - rightOffset;
+            // Each bar needs space for the candle + gap between candles
+            const barSpace = Math.max(6, Math.min(12, Math.floor(availableWidth / dataCount)));
+            
+            // @ts-ignore
+            chartInstance.current.setBarSpace(barSpace);
+            // Scroll to show the most recent data (right side of chart)
+            // Use a small delay to ensure chart is fully rendered before scrolling
+            setTimeout(() => {
+                if (chartInstance.current && historicalCandles.length > 0) {
+                    // @ts-ignore
+                    chartInstance.current.scrollToDataIndex(historicalCandles.length - 1);
+                }
+            }, 100);
+        }
     }, [historicalCandles]);
 
     // Update with real-time data
