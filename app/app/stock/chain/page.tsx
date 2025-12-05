@@ -9,6 +9,7 @@ import { getProgram, programId } from "../../../anchor/setup";
 import { TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 import { XSTOCKS, QUOTE_MINT } from "../../../utils/constants";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 import OrderForm, { type SelectedOptionInfo } from "../components/OrderForm";
 import OptionsChain from "../components/OptionsChain";
@@ -205,11 +206,11 @@ export default function ChainPage() {
             const sig = await connection.sendRawTransaction(signedTx.serialize());
             await connection.confirmTransaction(sig);
 
-            alert(`Covered Call Created!`);
+            toast.success("Covered Call Created!");
             fetchOptions();
         } catch (err) {
             console.error(err);
-            alert("Error creating covered call: " + (err as Error).message);
+            toast.error("Error creating covered call: " + (err as Error).message);
         } finally {
             setIsProcessing(false);
         }
@@ -307,13 +308,13 @@ export default function ChainPage() {
             const sig = await connection.sendRawTransaction(signedTx.serialize());
             await connection.confirmTransaction(sig);
 
-            alert("Option Bought!");
+            toast.success("Option Bought!");
             fetchOptions();
             setSelectedOption(null);
             setSelectedInfo(null);
         } catch (err) {
             console.error(err);
-            alert("Error buying option: " + (err as Error).message);
+            toast.error("Error buying option: " + (err as Error).message);
         } finally {
             setIsProcessing(false);
         }

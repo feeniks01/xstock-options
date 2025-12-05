@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import PositionCard from "../components/PositionCard";
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import toast from "react-hot-toast";
 
 // Lightweight mock endpoint to visualize an owned position without needing
 // an active wallet/positions. This page is only for testing/demo.
@@ -54,10 +55,10 @@ export default function MockPositionPage() {
         currentPrice={currentPrice}
         isSeller={true}
         symbol="AMZN"
-        onExercise={() => alert("Mock: exercise")}
-        onReclaim={() => alert("Mock: reclaim")}
-        onListForSale={(price) => alert(`Mock: list for sale at $${price.toFixed(2)}`)}
-        onCancelListing={() => alert("Mock: cancel listing")}
+        onExercise={() => toast.success("Mock: exercise")}
+        onReclaim={() => toast.success("Mock: reclaim")}
+        onListForSale={(price) => toast.success(`Mock: list for sale at $${price.toFixed(2)}`)}
+        onCancelListing={() => toast.success("Mock: cancel listing")}
       />
     </div>
   );

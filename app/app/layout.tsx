@@ -4,6 +4,7 @@ import "./globals.css";
 import AppWalletProvider from "../components/AppWalletProvider";
 import Navbar from "../components/Navbar";
 import TickerTape from "../components/TickerTape";
+import ToastProvider from "../components/ToastProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({
           <main className="container mx-auto p-8">
             {children}
           </main>
+          <ToastProvider />
         </AppWalletProvider>
       </body>
     </html>

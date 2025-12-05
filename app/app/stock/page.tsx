@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { init, dispose, Chart } from 'klinecharts';
 import bs58 from "bs58";
+import toast from "react-hot-toast";
 
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, Transaction } from "@solana/web3.js";
@@ -348,10 +349,10 @@ export default function StockPage() {
 
             fetchUserPositions();
             fetchUnderlyingBalance();
-            alert("Option Exercised Successfully!");
+            toast.success("Option Exercised Successfully!");
         } catch (e) {
             console.error("Exercise failed:", e);
-            alert("Exercise failed. See console.");
+            toast.error("Exercise failed. See console for details.");
         }
     };
 
@@ -401,10 +402,10 @@ export default function StockPage() {
 
             fetchUserPositions();
             fetchUnderlyingBalance();
-            alert("Position Reclaimed Successfully!");
+            toast.success("Position Reclaimed Successfully!");
         } catch (e) {
             console.error("Reclaim failed:", e);
-            alert("Reclaim failed. See console.");
+            toast.error("Reclaim failed. See console for details.");
         }
     };
 
@@ -429,11 +430,11 @@ export default function StockPage() {
             const signedTx = await wallet.signTransaction(tx);
             const sig = await connection.sendRawTransaction(signedTx.serialize());
             await connection.confirmTransaction(sig);
-            alert("Option listed for sale!");
+            toast.success("Option listed for sale!");
             fetchUserPositions();
         } catch (err) {
             console.error(err);
-            alert("Error listing option: " + (err as Error).message);
+            toast.error("Error listing option: " + (err as Error).message);
         } finally {
             setIsProcessing(false);
         }
@@ -460,11 +461,11 @@ export default function StockPage() {
             const signedTx = await wallet.signTransaction(tx);
             const sig = await connection.sendRawTransaction(signedTx.serialize());
             await connection.confirmTransaction(sig);
-            alert("Listing cancelled!");
+            toast.success("Listing cancelled!");
             fetchUserPositions();
         } catch (err) {
             console.error(err);
-            alert("Error cancelling listing: " + (err as Error).message);
+            toast.error("Error cancelling listing: " + (err as Error).message);
         } finally {
             setIsProcessing(false);
         }
