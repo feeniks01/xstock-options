@@ -219,10 +219,21 @@ pub struct BuyOption<'info> {
     pub buyer: Signer<'info>,
     #[account(mut)]
     pub covered_call: Account<'info, CoveredCall>,
-    #[account(mut)]
+
+    #[account(
+        mut,
+        constraint = buyer_quote_account.mint == covered_call.quote_mint, 
+        constraint = buyer_quote_account.owner == buyer.key() 
+    )]
     pub buyer_quote_account: Account<'info, TokenAccount>,
-    #[account(mut)]
+
+    #[account(
+        mut,
+        constraint = seller_quote_account.mint == covered_call.quote_mint,
+        constraint = seller_quote_account.owner == covered_call.seller 
+    )]
     pub seller_quote_account: Account<'info, TokenAccount>,
+    
     pub token_program: Program<'info, Token>,
 }
 

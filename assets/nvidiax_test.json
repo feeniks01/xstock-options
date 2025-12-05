@@ -1,0 +1,12 @@
+{
+    "name": "NVIDIA xStock Test",
+    "symbol": "NVIDIAx",
+    "description": "NVIDIA xStock Test",
+    "image": "https://raw.githubusercontent.com/feeniks01/xstock-options/refs/heads/main/assets/nvidiax_logo.png",
+    "attributes": [
+      {
+        "trait_type": "Item",
+        "value": "xStock"
+      }
+    ]
+  }

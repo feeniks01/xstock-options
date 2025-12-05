@@ -21,8 +21,8 @@ custom-panic = []
 
 
 [dependencies]
-anchor-lang = "0.29.0"
-anchor-spl = "0.29.0"
+anchor-lang = "0.32.1"
+anchor-spl = "0.32.1"
 toml_datetime = "0.6"
 borsh = "=0.10.3"
 

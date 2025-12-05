@@ -17,4 +17,4 @@ cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "pnpm run mocha -t 1000000 tests/"
+test = "pnpm run mocha -t 1000000"
