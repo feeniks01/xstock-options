@@ -1,8 +1,49 @@
 # xStock Options
 
-xStock Options is a Solana based covered call options protocol built on synthetic equities from xStocks, using USDC as collateral.
+xStock Options is a Solana-based covered call options protocol built on synthetic equities from xStocks, using USDC as collateral.
 
-It allows users to:
+## How to Use
+
+xStock Options allows you to trade covered call options on synthetic stocks (like synthetic AAPL, TSLA, NVDA, etc.) directly on Solana. Here's how to get started:
+
+### For Option Sellers (Writing Covered Calls)
+
+1. **Browse Available Stocks**: Visit the platform and browse synthetic stocks available for trading
+2. **Select a Stock**: Choose a synthetic stock you own (e.g., xNVDA, xAAPL)
+3. **Create a Covered Call**: 
+   - Lock your synthetic stock into a vault
+   - Set your strike price (the price at which the option can be exercised)
+   - Choose an expiration date
+   - Set your premium (the price you want to receive for selling the option)
+4. **List Your Option**: Your option will appear in the marketplace for others to buy
+5. **Receive Premium**: When someone buys your option, you immediately receive the premium in USDC
+6. **Manage Your Position**:
+   - If the option expires without being exercised, you can reclaim your stock
+   - If the option is exercised, you receive the strike price in USDC and the buyer gets your stock
+
+### For Option Buyers
+
+1. **Browse Options Chain**: View available options for different synthetic stocks
+2. **Select an Option**: Choose an option with your desired strike price and expiration
+3. **Buy the Option**: Pay the premium in USDC to purchase the option
+4. **Manage Your Position**:
+   - **Exercise**: If the stock price exceeds the strike price before expiration, exercise the option to buy the stock at the strike price
+   - **Resell**: You can list your option for resale at a new price if you don't want to exercise it
+   - **Let it Expire**: If the stock price stays below the strike price, the option expires worthless
+
+### Key Benefits
+
+- **24/7 Trading**: Synthetic stocks trade continuously on Solana, even when traditional markets are closed
+- **Transparent Pricing**: Option premiums are calculated using Black-Scholes pricing based on real-time volatility
+- **Secondary Market**: Buy and sell options before expiration
+- **No Intermediaries**: Direct peer-to-peer trading on the blockchain
+
+---
+
+## What It Does
+
+xStock Options enables users to:
+
 - Lock xStock (synthetic AAPL, TSLA, etc.) into a vault
 - List covered calls with strike, expiry, and premium
 - Buy and resell options on a simple secondary market
@@ -11,65 +52,74 @@ It allows users to:
 
 ## Architecture
 
-- **Program:** `programs/xstock_options/src/lib.rs`
-  - Anchor program that:
-    - Locks xStock into a PDA vault when a covered call is created
-    - Handles premium payments when options are bought
-    - Settles exercise by moving USDC strike to the seller and xStock to the buyer
-    - Lets the seller reclaim xStock if the option expires or was never sold
+### Program
 
-- **Frontend:** `app/`
-  - Next.js App Router UI for:
-    - Viewing synthetic stocks and their option chains
-    - Creating covered calls
-    - Buying options
-    - Exercising or reclaiming positions
+**Location:** `programs/xstock_options/src/lib.rs`
 
-- **Tests:** `tests/xstock.ts`
-  - Anchor integration tests that:
-    - Create test mints for xStock and USDC
-    - Mint balances
-    - Walk through create, buy, exercise, and reclaim flows end to end
+Anchor program that:
+- Locks xStock into a PDA vault when a covered call is created
+- Handles premium payments when options are bought
+- Settles exercise by moving USDC strike to the seller and xStock to the buyer
+- Lets the seller reclaim xStock if the option expires or was never sold
+
+### Frontend
+
+**Location:** `app/`
+
+Next.js App Router UI for:
+- Viewing synthetic stocks and their option chains
+- Creating covered calls
+- Buying options
+- Exercising or reclaiming positions
+
+### Tests
+
+**Location:** `tests/xstock.ts`
+
+Anchor integration tests that:
+- Create test mints for xStock and USDC
+- Mint balances
+- Walk through create, buy, exercise, and reclaim flows end to end
 
 ## Covered Call Lifecycle
 
 1. **Create**
-   - Seller calls `create_covered_call` with strike, expiry, amount, and premium.
-   - Program transfers `amount` of xStock from the seller to a PDA vault.
-   - CoveredCall account is initialized and marked as listed.
+   - Seller calls `create_covered_call` with strike, expiry, amount, and premium
+   - Program transfers `amount` of xStock from the seller to a PDA vault
+   - CoveredCall account is initialized and marked as listed
 
 2. **Buy**
-   - Buyer calls `buy_option`.
-   - Program checks the option is listed, not expired, and not exercised.
-   - Buyer pays the premium in USDC to the current owner (seller or previous buyer).
-   - CoveredCall records the buyer and is marked as unlisted.
+   - Buyer calls `buy_option`
+   - Program checks the option is listed, not expired, and not exercised
+   - Buyer pays the premium in USDC to the current owner (seller or previous buyer)
+   - CoveredCall records the buyer and is marked as unlisted
 
-3. **List for resale**
-   - Current owner calls `list_for_sale` with a new ask price.
-   - CoveredCall is marked as listed again.
+3. **List for Resale**
+   - Current owner calls `list_for_sale` with a new ask price
+   - CoveredCall is marked as listed again
 
 4. **Exercise**
-   - Buyer calls `exercise` before expiry.
-   - Program transfers strike amount in USDC from buyer to seller.
-   - PDA vault sends xStock to the buyer.
-   - CoveredCall is marked as exercised.
+   - Buyer calls `exercise` before expiry
+   - Program transfers strike amount in USDC from buyer to seller
+   - PDA vault sends xStock to the buyer
+   - CoveredCall is marked as exercised
 
 5. **Reclaim**
-   - If the option expired or was never sold, seller calls `reclaim`.
-   - PDA vault sends any remaining xStock back to seller.
-   - CoveredCall is marked as cancelled.
+   - If the option expired or was never sold, seller calls `reclaim`
+   - PDA vault sends any remaining xStock back to seller
+   - CoveredCall is marked as cancelled
 
 ## Pricing and Volatility
 
-Option premiums are computed off chain in the frontend.
+Option premiums are computed off-chain in the frontend.
 
 For the hackathon, we estimate volatility from recent synthetic xStock price movements:
 
-1. Pull recent prices of the xStock asset.
-2. Compute log returns `r_i = ln(S_i / S_{i-1})`.
-3. Compute the standard deviation of returns and annualize it.
-4. Plug the resulting volatility into a Black Scholes call formula to obtain a fair premium.
-5. Use that premium as the initial `ask_price` when creating a covered call.
+1. Pull recent prices of the xStock asset
+2. Compute log returns `r_i = ln(S_i / S_{i-1})`
+3. Compute the standard deviation of returns and annualize it
+4. Plug the resulting volatility into a Black-Scholes call formula to obtain a fair premium
+5. Use that premium as the initial `ask_price` when creating a covered call
 
 This approach works 24/7 because synthetic xStocks trade continuously on Solana, even when the underlying equity markets are closed.
 
@@ -197,6 +247,7 @@ pnpm start
 
 ## Repository Structure
 
+```
 .
 ├── .gitignore
 ├── Anchor.toml
@@ -230,3 +281,4 @@ pnpm start
 │   └── xstock_options/
 └── tests/
     └── xstock.ts
+```
