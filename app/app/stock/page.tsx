@@ -262,8 +262,41 @@ export default function StockPage() {
             const program = getProgram(connection, wallet);
             const coveredCall = position.publicKey;
 
-            const buyerUnderlyingAccount = getAta(stock.mint, wallet.publicKey);
+            // Calculate required amounts
+            const strike = position.account.strike.toNumber() / 100_000_000; // Strike per share
+            const amount = position.account.amount.toNumber() / 1_000_000; // Amount in shares (with 6 decimals)
+            const contracts = amount / 100; // Each contract is 100 shares
+            const totalStrikeNeeded = strike * amount; // Total USDC needed (strike × shares)
+
+            // Check SOL balance for transaction fees (need at least 0.001 SOL)
+            const solBalance = await connection.getBalance(wallet.publicKey);
+            const minSolRequired = 0.001 * 1e9; // 0.001 SOL in lamports
+            if (solBalance < minSolRequired) {
+                toast.error(`Insufficient SOL for transaction fees. You need at least 0.001 SOL (you have ${(solBalance / 1e9).toFixed(4)} SOL)`);
+                return;
+            }
+
+            // Check USDC balance
             const buyerQuoteAccount = getAta(QUOTE_MINT, wallet.publicKey);
+            let usdcBalance = 0;
+            try {
+                const buyerQuoteAccountInfo = await connection.getAccountInfo(buyerQuoteAccount);
+                if (buyerQuoteAccountInfo) {
+                    const balanceData = await connection.getTokenAccountBalance(buyerQuoteAccount);
+                    usdcBalance = balanceData.value.uiAmount || 0;
+                }
+            } catch (e) {
+                // Account doesn't exist yet, balance is 0
+            }
+
+            if (usdcBalance < totalStrikeNeeded) {
+                toast.error(
+                    `Insufficient USDC to exercise. You need ${totalStrikeNeeded.toFixed(2)} USDC (strike $${strike.toFixed(2)} × ${amount.toFixed(0)} shares), but you have ${usdcBalance.toFixed(2)} USDC.`
+                );
+                return;
+            }
+
+            const buyerUnderlyingAccount = getAta(stock.mint, wallet.publicKey);
             const sellerQuoteAccount = getAta(QUOTE_MINT, position.account.seller);
             const vaultAccount = PublicKey.findProgramAddressSync(
                 [Buffer.from("vault"), coveredCall.toBuffer()],

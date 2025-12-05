@@ -8,11 +8,11 @@ export interface XStock {
     priceMint?: PublicKey; // Mainnet mint address for fetching real price data from Bitquery
 }
 
-// Mock NVIDIA xStock mint for on-chain operations (devnet)
-export const MOCK_MINT = new PublicKey("D2MsPh8dQcuVwr1L1KZBs6BPkfBG9w4Bn4S5iEbc7iaR");
+// xStock mint for on-chain operations
+export const MOCK_MINT = new PublicKey("H9AqpTYHCGCvJ12YxRX5goGNTcG9VAai1hgQHzVf68vT");
 
-// Test USDC mint for on-chain operations (devnet)
-export const QUOTE_MINT = new PublicKey("8vjUztAfre5RaJtHSUwv6VSBGJMsQe2FVXcofohvtMZ");
+// USDC mint for on-chain operations
+export const QUOTE_MINT = new PublicKey("EnDeaApTGfsWxMwLbmJsTh1gSLVR8gJG26dqoDjfPVag");
 export const QUOTE_LOGO = "/usdc_logo.png"; // Local USDC logo
 
 // Real NVDAx mainnet mint for price data
