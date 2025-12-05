@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import bs58 from "bs58";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction } from "@solana/web3.js";
@@ -10,19 +10,20 @@ import { TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from "@sola
 import { XSTOCKS, QUOTE_MINT } from "../../../utils/constants";
 import { useRouter } from "next/navigation";
 
-import OrderForm from "../components/OrderForm";
+import OrderForm, { type SelectedOptionInfo } from "../components/OrderForm";
 import OptionsChain from "../components/OptionsChain";
-import { calculateOptionPremium } from "../../../utils/pricing";
 
 export default function ChainPage() {
     const router = useRouter();
     const { connection } = useConnection();
     const wallet = useWallet();
 
-    const stock = XSTOCKS[0]; // Mock xStock
+    const stock = XSTOCKS[0];
     const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+    const [priceChange, setPriceChange] = useState<number>(0);
     const [availableOptions, setAvailableOptions] = useState<any[]>([]);
     const [selectedOption, setSelectedOption] = useState<any | null>(null);
+    const [selectedInfo, setSelectedInfo] = useState<SelectedOptionInfo | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
@@ -41,7 +42,10 @@ export default function ChainPage() {
         try {
             const res = await fetch('/api/price');
             const data = await res.json();
-            const price = data.price;
+            const price = data.price || data.currentPrice;
+            if (currentPrice && price) {
+                setPriceChange(((price - currentPrice) / currentPrice) * 100);
+            }
             setCurrentPrice(price);
         } catch (err) {
             console.error("Failed to fetch price:", err);
@@ -55,12 +59,8 @@ export default function ChainPage() {
             // @ts-ignore
             const accountClient = program.account.coveredCall || program.account.CoveredCall;
 
-            // Manual fetch to handle legacy accounts with different sizes
             const memcmpResult = accountClient.coder.accounts.memcmp("coveredCall");
-            console.log("memcmp result:", memcmpResult);
-
             const discriminator = memcmpResult.bytes ? memcmpResult.bytes : memcmpResult;
-            const discriminatorBytes = typeof discriminator === 'string' ? bs58.decode(discriminator) : discriminator;
             const discriminatorEncoded = typeof discriminator === 'string' ? discriminator : bs58.encode(discriminator);
 
             const accounts = await connection.getProgramAccounts(program.programId, {
@@ -76,10 +76,7 @@ export default function ChainPage() {
 
             const allCalls = accounts.map(acc => {
                 try {
-                    // Check if account data is large enough for the new schema (173 bytes)
-                    // 8 (disc) + 32 + 33 + 32 + 32 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 8 = 173
                     if (acc.account.data.length < 173) {
-                        console.warn(`Skipping legacy account ${acc.pubkey.toBase58()} (size: ${acc.account.data.length})`);
                         return null;
                     }
                     return {
@@ -87,12 +84,10 @@ export default function ChainPage() {
                         account: accountClient.coder.accounts.decode("coveredCall", acc.account.data)
                     };
                 } catch (e) {
-                    console.warn(`Failed to decode account ${acc.pubkey.toBase58()}:`, e);
                     return null;
                 }
             }).filter(a => a !== null);
 
-            // Filter for available options (no buyer yet OR listed for sale) and not expired
             const options = allCalls.filter((a: any) =>
                 (!a.account.buyer || a.account.isListed) &&
                 a.account.expiryTs.toNumber() > Date.now() / 1000
@@ -104,6 +99,24 @@ export default function ChainPage() {
         }
     };
 
+    // Handle option selection from chain
+    const handleOptionSelect = useCallback((option: any, type: "call" | "put", side: "buy" | "sell") => {
+        // Build selected info for order form auto-fill
+        const info: SelectedOptionInfo = {
+            strike: option.strike,
+            premium: option.mid,
+            expiration: option.expiration,
+            type: type,
+            side: side,
+            delta: option.delta,
+            iv: option.iv,
+            rawOption: option.rawOption || null,
+        };
+        
+        setSelectedInfo(info);
+        setSelectedOption(option.rawOption || null);
+    }, []);
+
     const handleSell = async (params: { strike: number; expiry: Date; contracts: number; premium: number }) => {
         if (!wallet.publicKey || !wallet.signTransaction) return;
         setIsProcessing(true);
@@ -111,18 +124,9 @@ export default function ChainPage() {
         try {
             const program = getProgram(connection, wallet);
 
-            const strikePrice = params.strike * 100 * 1_000_000; // 100 shares per contract
-            // params.premium is Total Premium per Contract (e.g. 5.46 USDC)
-            const premiumAmount = Math.floor(params.premium * 1_000_000); // 6 decimals
+            const strikePrice = params.strike * 100 * 1_000_000;
+            const premiumAmount = Math.floor(params.premium * 1_000_000);
             const expiryTimestamp = Math.floor(params.expiry.getTime() / 1000);
-
-            console.log("--- Creating Covered Call ---");
-            console.log("Strike Price (Per Share):", params.strike);
-            console.log("Strike Price (Total Units):", strikePrice);
-            console.log("Premium (Total USDC):", params.premium);
-            console.log("Premium (Total Units):", premiumAmount);
-            console.log("Expiry:", params.expiry.toISOString());
-            console.log("Contracts:", params.contracts);
 
             const [coveredCallPda] = PublicKey.findProgramAddressSync(
                 [Buffer.from("covered_call"), wallet.publicKey.toBuffer(), stock.mint.toBuffer(), new BN(expiryTimestamp).toArrayLike(Buffer, "le", 8)],
@@ -195,23 +199,17 @@ export default function ChainPage() {
             const coveredCallKey = account.publicKey;
             const data = account.account;
 
-            // Validate data
             if (!data || !data.quoteMint || !data.seller) {
                 throw new Error("Invalid option data");
             }
 
             const getAta = (mint: PublicKey, owner: PublicKey) => {
-                if (!mint || !owner) {
-                    throw new Error("Invalid mint or owner for ATA derivation");
-                }
                 return PublicKey.findProgramAddressSync(
                     [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
                     new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
                 )[0];
             };
 
-            // An option is a resale only if it has been purchased (buyer exists)
-            // Just being listed doesn't mean it's a resale
             const isResale = data.buyer !== null;
             const currentSeller = isResale ? data.buyer : data.seller;
 
@@ -221,25 +219,6 @@ export default function ChainPage() {
 
             const buyerQuoteAccount = getAta(data.quoteMint, wallet.publicKey);
             const sellerQuoteAccount = getAta(data.quoteMint, currentSeller);
-
-            // Debug Logs
-            console.log("--- Debug Buy Option ---");
-            console.log("Option Address:", coveredCallKey.toBase58());
-            console.log("Strike (Units):", data.strike.toString());
-            console.log("Strike (Per Share):", data.strike.toNumber() / 100_000_000);
-            console.log("Premium (Units):", data.premium.toString());
-            console.log("Premium (Total USDC):", data.premium.toNumber() / 1_000_000);
-            console.log("Premium (Total USDC):", data.premium.toNumber() / 1_000_000);
-            console.log("Seller (Funds Recipient):", currentSeller.toBase58());
-            console.log("Is Resale:", isResale);
-
-            try {
-                const balance = await connection.getTokenAccountBalance(buyerQuoteAccount);
-                console.log("Buyer Balance (Units):", balance.value.amount);
-                console.log("Buyer Balance (USDC):", balance.value.uiAmount);
-            } catch (e) {
-                console.log("Could not fetch buyer balance (account might not exist)");
-            }
 
             const ix = await program.methods
                 .buyOption()
@@ -262,31 +241,27 @@ export default function ChainPage() {
 
             const tx = new Transaction();
 
-            // Check if seller quote account exists
             const sellerQuoteAccountInfo = await connection.getAccountInfo(sellerQuoteAccount);
             if (!sellerQuoteAccountInfo) {
-                console.log("Creating Seller Quote ATA...");
                 tx.add(
                     createAssociatedTokenAccountInstruction(
-                        wallet.publicKey, // payer
-                        sellerQuoteAccount, // associatedToken
-                        currentSeller, // owner
-                        data.quoteMint // mint
+                        wallet.publicKey,
+                        sellerQuoteAccount,
+                        currentSeller,
+                        data.quoteMint
                     )
                 );
             }
 
-            // Check if buyer xStock account exists (User request: create during tx)
             const buyerXstockAccount = getAta(stock.mint, wallet.publicKey);
             const buyerXstockAccountInfo = await connection.getAccountInfo(buyerXstockAccount);
             if (!buyerXstockAccountInfo) {
-                console.log("Creating Buyer xStock ATA...");
                 tx.add(
                     createAssociatedTokenAccountInstruction(
-                        wallet.publicKey, // payer
-                        buyerXstockAccount, // associatedToken
-                        wallet.publicKey, // owner
-                        stock.mint // mint
+                        wallet.publicKey,
+                        buyerXstockAccount,
+                        wallet.publicKey,
+                        stock.mint
                     )
                 );
             }
@@ -303,6 +278,7 @@ export default function ChainPage() {
             alert("Option Bought!");
             fetchOptions();
             setSelectedOption(null);
+            setSelectedInfo(null);
         } catch (err) {
             console.error(err);
             alert("Error buying option: " + (err as Error).message);
@@ -313,46 +289,106 @@ export default function ChainPage() {
 
     if (!wallet.publicKey) {
         return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="text-center">
-                    <p className="text-muted-foreground">Connect your wallet to view the options chain</p>
+            <div className="min-h-screen bg-[#070a0d] flex items-center justify-center">
+                <div className="text-center space-y-4">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-white/5 flex items-center justify-center">
+                        <svg className="w-10 h-10 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                        </svg>
+                    </div>
+                    <p className="text-white/50">Connect your wallet to view the options chain</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="max-w-[1600px] mx-auto px-6 py-8">
-            <div className="space-y-4 mb-8">
-                <button onClick={() => router.push('/stock')} className="text-muted-foreground hover:text-foreground w-fit">
-                    ← Back
-                </button>
-                <div className="flex items-baseline gap-4">
-                    <h1 className="text-3xl font-bold">{stock.symbol} Option Chain</h1>
-                    {currentPrice && (
-                        <span className="text-xl text-muted-foreground">${currentPrice.toFixed(2)}</span>
-                    )}
+        <div className="min-h-screen bg-[#070a0d]">
+            <div className="max-w-[1800px] mx-auto px-6 py-8">
+                {/* ═══════════════════════════════════════════════════════════════════ */}
+                {/* HEADER */}
+                {/* ═══════════════════════════════════════════════════════════════════ */}
+                <div className="space-y-4 mb-6">
+                    <button 
+                        onClick={() => router.push('/stock')} 
+                        className="text-white/40 hover:text-white transition-colors flex items-center gap-2 text-sm"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        Back to {stock.symbol}
+                    </button>
+                    
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            {stock.logo && (
+                                <img src={stock.logo} alt={stock.name} className="w-12 h-12 rounded-full" />
+                            )}
+                            <div>
+                                <h1 className="text-3xl font-bold text-white">{stock.symbol} Options Chain</h1>
+                                <p className="text-white/40 text-sm">{stock.name} • Covered Calls & Puts</p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            {currentPrice && (
+                                <div className="text-right">
+                                    <p className="text-2xl font-bold text-white">${currentPrice.toFixed(2)}</p>
+                                    <p className={`text-sm font-medium ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+                                    </p>
+                                </div>
+                            )}
+                            <div className="bg-green-500/10 border border-green-500/30 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                <span className="text-green-400 text-xs font-medium">LIVE</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className="lg:col-span-9">
-                    <OptionsChain
-                        options={availableOptions}
-                        selectedOption={selectedOption}
-                        onSelectOption={setSelectedOption}
-                        currentPrice={currentPrice || 0}
-                    />
-                </div>
-                <div className="lg:col-span-3">
-                    <div className="sticky top-6">
-                        <OrderForm
-                            currentPrice={currentPrice || 0}
+                {/* ═══════════════════════════════════════════════════════════════════ */}
+                {/* MAIN CONTENT */}
+                {/* ═══════════════════════════════════════════════════════════════════ */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                    {/* Options Chain */}
+                    <div className="xl:col-span-9">
+                        <OptionsChain
+                            options={availableOptions}
                             selectedOption={selectedOption}
-                            onSell={handleSell}
-                            onBuy={handleBuy}
-                            isProcessing={isProcessing}
+                            onSelectOption={handleOptionSelect}
+                            currentPrice={currentPrice || 0}
                         />
+                    </div>
+                    
+                    {/* Order Form */}
+                    <div className="xl:col-span-3">
+                        <div className="sticky top-6">
+                            <OrderForm
+                                currentPrice={currentPrice || 0}
+                                selectedOption={selectedOption}
+                                selectedInfo={selectedInfo}
+                                onSell={handleSell}
+                                onBuy={handleBuy}
+                                isProcessing={isProcessing}
+                            />
+                            
+                            {/* Quick Stats */}
+                            <div className="mt-4 bg-[#0a0b0d] border border-white/5 rounded-xl p-4 space-y-3">
+                                <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider">Market Stats</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-white/[0.02] rounded-lg p-3">
+                                        <p className="text-[10px] text-white/40 uppercase">Total Options</p>
+                                        <p className="text-lg font-bold text-white">{availableOptions.length}</p>
+                                    </div>
+                                    <div className="bg-white/[0.02] rounded-lg p-3">
+                                        <p className="text-[10px] text-white/40 uppercase">Avg IV</p>
+                                        <p className="text-lg font-bold text-white">32.5%</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
