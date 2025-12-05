@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { init, dispose, Chart } from 'klinecharts';
+import { init, dispose, Chart, LineType, PolygonType } from 'klinecharts';
 import bs58 from "bs58";
 import toast from "react-hot-toast";
 
@@ -965,19 +965,19 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
                         show: true,
                         line: {
                             show: true,
-                            style: 'dashed',
+                            style: LineType.Dashed,
                             dashedValue: [4, 2],
                             size: 1,
                             color: '#787b86'
                         },
                         text: {
                             show: true,
-                            style: 'fill',
+                            style: PolygonType.Fill,
                             color: '#f5f5f5',
                             size: 11,
                             family: 'inherit',
                             weight: 'normal',
-                            borderStyle: 'solid',
+                            borderStyle: LineType.Solid,
                             borderSize: 1,
                             borderColor: '#3f3f46',
                             borderRadius: 4,
@@ -992,19 +992,19 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
                         show: true,
                         line: {
                             show: true,
-                            style: 'dashed',
+                            style: LineType.Dashed,
                             dashedValue: [4, 2],
                             size: 1,
                             color: '#787b86'
                         },
                         text: {
                             show: true,
-                            style: 'fill',
+                            style: PolygonType.Fill,
                             color: '#f5f5f5',
                             size: 11,
                             family: 'inherit',
                             weight: 'normal',
-                            borderStyle: 'solid',
+                            borderStyle: LineType.Solid,
                             borderSize: 1,
                             borderColor: '#3f3f46',
                             borderRadius: 4,
