@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "xStock Options",
+  title: "xOptions",
   description: "Covered Calls for Tokenized Stocks on Solana",
 };
 

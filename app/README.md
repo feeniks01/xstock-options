@@ -1,4 +1,4 @@
-# xStock Options Frontend
+# xOptions Frontend
 
 A Next.js web application for trading covered call options on tokenized stocks on Solana.
 

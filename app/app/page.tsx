@@ -22,7 +22,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">xStock Options</h1>
+        <h1 className="text-3xl font-bold text-foreground mb-2">xOptions</h1>
         <p className="text-muted-foreground">Select a stock to trade options</p>
       </div>
 
@@ -86,7 +86,7 @@ export default function DashboardPage() {
             Options trading for {XSTOCKS.find(s => s.mint.toString() === selectedStock)?.name} will be available soon.
           </p>
           <p className="text-sm text-muted-foreground mt-4">
-            For now, try creating options with <span className="font-semibold text-foreground">Mock xStock</span>
+            For now, try creating options with <span className="font-semibold text-foreground">Mock Token</span>
           </p>
           <Link
             href="/stock"
@@ -99,9 +99,9 @@ export default function DashboardPage() {
 
       {selectedStock === MOCK_MINT.toString() && (
         <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-8 text-center">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Mock xStock Active</h2>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Mock Token Active</h2>
           <p className="text-muted-foreground mb-6">
-            Start trading options on the test xStock token
+            Start trading options on the test token
           </p>
           <div className="flex gap-4 justify-center">
             <Link

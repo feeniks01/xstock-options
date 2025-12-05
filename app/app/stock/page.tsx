@@ -144,13 +144,13 @@ export default function StockPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [isLoadingPositions, setIsLoadingPositions] = useState(true);
     
-    // Polling interval (in milliseconds)
-    const [pollInterval, setPollInterval] = useState<number>(10000);
+    // Polling interval (in milliseconds) - default 1 minute to reduce API load
+    const [pollInterval, setPollInterval] = useState<number>(60000);
     const POLL_OPTIONS = [
-        { label: '5s', value: 5000 },
         { label: '15s', value: 15000 },
         { label: '30s', value: 30000 },
         { label: '1m', value: 60000 },
+        { label: '2m', value: 120000 },
         { label: '5m', value: 300000 },
     ];
 

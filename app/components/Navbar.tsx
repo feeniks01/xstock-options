@@ -18,7 +18,7 @@ export default function Navbar() {
         <nav className="border-b border-border bg-background sticky top-0 z-50">
             <div className="container mx-auto px-6 h-16 flex justify-between items-center">
                 <Link href="/" className="text-lg font-semibold tracking-tight text-foreground hover:text-muted-foreground transition-colors">
-                    xStock Options
+                    xOptions
                 </Link>
 
                 <div className="hidden md:flex gap-8">
