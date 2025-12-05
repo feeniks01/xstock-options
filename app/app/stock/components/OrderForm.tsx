@@ -93,12 +93,12 @@ export default function OrderForm({
         ? calculateOptionPremium(currentPrice, parseFloat(strikePrice), calculatedExpiryDate)
         : 0;
 
-    // Update custom premium when estimate changes
+    // Auto-populate premium with suggested value when inputs change
     useEffect(() => {
-        if (estimatedPremium > 0 && !customPremium && !selectedInfo) {
+        if (estimatedPremium > 0 && !selectedInfo) {
             setCustomPremium(estimatedPremium.toFixed(2));
         }
-    }, [estimatedPremium]);
+    }, [estimatedPremium, strikePrice, expiryInterval]);
 
     // Switch to buy tab if an option is selected
     useEffect(() => {

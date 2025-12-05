@@ -532,40 +532,6 @@ export default function StockPage() {
                         <h1 className="text-2xl font-bold text-[#f5f5f5]">{stock.symbol}</h1>
                         <p className="text-[rgba(255,255,255,0.5)] text-xs">{stock.name}</p>
                     </div>
-                    <div className="ml-auto flex items-center gap-3">
-                        {/* Expanded Owned Section */}
-                        <Tooltip text={underlyingBalance > 0 ? `Value: $${holdingValue.toFixed(2)}` : "You don't own any shares yet"}>
-                            <div className="bg-[#27272a] px-3 py-1.5 rounded-lg cursor-help">
-                                <div className="text-xs text-[rgba(255,255,255,0.5)]">
-                                    Owned: <span className="text-[#f5f5f5] font-semibold">{underlyingBalance.toLocaleString()}</span>
-                                </div>
-                                {underlyingBalance > 0 && stockData && (
-                                    <div className="text-xs text-[#3DD68C] font-medium">
-                                        Value: ${holdingValue.toFixed(2)}
-                                    </div>
-                                )}
-                            </div>
-                        </Tooltip>
-                        {/* Polling interval dropdown */}
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-[rgba(255,255,255,0.4)]">Refresh:</span>
-                            <select 
-                                value={pollInterval}
-                                onChange={(e) => setPollInterval(Number(e.target.value))}
-                                className="bg-[#27272a] text-xs text-[#f5f5f5] px-2 py-1.5 rounded-lg border border-[#3f3f46] cursor-pointer hover:bg-[#3f3f46] transition-colors focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            >
-                                {POLL_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                            </select>
-                        </div>
-                        {stockData && (
-                            <span className="bg-green-500/20 text-green-500 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                                LIVE
-                            </span>
-                        )}
-                    </div>
                 </div>
 
                 {/* Price Row with Sparkline */}
@@ -681,14 +647,36 @@ export default function StockPage() {
                                     ))}
                                 </div>
                                 
-                                {/* Exchange/Oracle/Time info */}
-                                <div className="flex items-center gap-2 text-[10px] text-[rgba(255,255,255,0.4)]">
-                                    <span>{stockData.dex || 'DEX'}</span>
-                                    <span className="text-[#3f3f46]">•</span>
-                                    <span>{stockData.source === 'bitquery' ? 'Bitquery' : 'Internal'}</span>
-                                    <span className="text-[#3f3f46]">•</span>
-                                    <span>{lastUpdateTime ? lastUpdateTime.toLocaleTimeString() : '—'}</span>
-                                    {stockData.stale && <span className="text-yellow-500 ml-1">⚠</span>}
+                                {/* Right side: Refresh/Live + Exchange/Oracle/Time info */}
+                                <div className="flex flex-col items-end gap-1">
+                                    {/* Refresh & Live indicator */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[10px] text-[rgba(255,255,255,0.4)]">Refresh:</span>
+                                            <select 
+                                                value={pollInterval}
+                                                onChange={(e) => setPollInterval(Number(e.target.value))}
+                                                className="bg-[#27272a] text-[10px] text-[#f5f5f5] px-1.5 py-1 rounded border border-[#3f3f46] cursor-pointer hover:bg-[#3f3f46] transition-colors focus:outline-none"
+                                            >
+                                                {POLL_OPTIONS.map(opt => (
+                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <span className="bg-green-500/20 text-green-500 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                                            LIVE
+                                        </span>
+                                    </div>
+                                    {/* Exchange/Oracle/Time info */}
+                                    <div className="flex items-center gap-2 text-[10px] text-[rgba(255,255,255,0.4)]">
+                                        <span>{stockData.dex || 'DEX'}</span>
+                                        <span className="text-[#3f3f46]">•</span>
+                                        <span>{stockData.source === 'bitquery' ? 'Bitquery' : 'Internal'}</span>
+                                        <span className="text-[#3f3f46]">•</span>
+                                        <span>{lastUpdateTime ? lastUpdateTime.toLocaleTimeString() : '—'}</span>
+                                        {stockData.stale && <span className="text-yellow-500 ml-1">⚠</span>}
+                                    </div>
                                 </div>
                             </div>
                         </>
@@ -808,7 +796,31 @@ export default function StockPage() {
 
                 {/* Tab Content */}
                 {activeTab === 'active' && (
-                    <div>
+                    <div className="space-y-4">
+                        {/* Holdings Card */}
+                        <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider font-medium mb-1">
+                                        {stock.symbol} Holdings
+                                    </p>
+                                    <div className="flex items-baseline gap-3">
+                                        <span className="text-2xl font-bold text-[#f5f5f5]">
+                                            {underlyingBalance.toLocaleString()}
+                                        </span>
+                                        <span className="text-sm text-[rgba(255,255,255,0.5)]">shares</span>
+                                    </div>
+                                </div>
+                                {underlyingBalance > 0 && stockData && (
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">Value</p>
+                                        <p className="text-xl font-bold text-[#3DD68C]">${holdingValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Positions */}
                         {isLoadingPositions ? (
                             <div className="text-center py-16 bg-[#0f1015] rounded-xl border border-[#27272a]">
                                 <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4"></div>
@@ -834,14 +846,13 @@ export default function StockPage() {
                                 })}
                             </div>
                         ) : (
-                            <div className="text-center py-16 bg-[#0f1015] rounded-xl border border-[#27272a]">
-                                <p className="text-[#f5f5f5] text-lg mb-2">You don't own {stock.symbol} yet.</p>
-                                <p className="text-[rgba(255,255,255,0.5)] text-sm mb-6">Start trading to build your position.</p>
+                            <div className="text-center py-12 bg-[#0f1015] rounded-xl border border-[#27272a]">
+                                <p className="text-[rgba(255,255,255,0.5)] text-sm mb-4">No active option positions</p>
                                 <button
                                     onClick={() => router.push('/stock/chain')}
-                                    className="bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold px-8 py-3 rounded-xl hover:opacity-90 transition-opacity"
+                                    className="bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold px-6 py-2.5 rounded-lg hover:opacity-90 transition-opacity text-sm"
                                 >
-                                    Buy {stock.symbol}
+                                    Trade Options
                                 </button>
                             </div>
                         )}

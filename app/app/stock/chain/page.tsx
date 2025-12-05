@@ -352,29 +352,24 @@ export default function ChainPage() {
                         Back to {stock.symbol}
                     </button>
                     
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            {stock.logo && (
-                                <img src={stock.logo} alt={stock.name} className="w-12 h-12 rounded-full" />
-                            )}
-                            <div>
-                                <h1 className="text-3xl font-bold text-white">{stock.symbol} Options Chain</h1>
-                                <p className="text-white/40 text-sm">{stock.name} • Covered Calls & Puts</p>
-                            </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-4">
-                            {currentPrice && (
-                                <div className="text-right">
-                                    <p className="text-2xl font-bold text-white">${currentPrice.toFixed(2)}</p>
-                                    <p className={`text-sm font-medium ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                        {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
-                                    </p>
-                                </div>
-                            )}
-                            <div className="bg-green-500/10 border border-green-500/30 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                                <span className="text-green-400 text-xs font-medium">LIVE</span>
+                    <div className="flex items-center gap-4">
+                        {stock.logo && (
+                            <img src={stock.logo} alt={stock.name} className="w-12 h-12 rounded-full" />
+                        )}
+                        <div>
+                            <h1 className="text-3xl font-bold text-white">{stock.symbol} Options Chain</h1>
+                            <div className="flex items-center gap-3 mt-1">
+                                {currentPrice && (
+                                    <span className="text-xl font-bold text-white">${currentPrice.toFixed(2)}</span>
+                                )}
+                                {currentPrice && (
+                                    <>
+                                        {/* <span className="text-white/30">•</span> */}
+                                        <span className={`text-sm font-medium ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
