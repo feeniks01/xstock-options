@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getNVDAVolatility } from '../../../lib/nvda-volatility';
 
 const BITQUERY_API_URL = 'https://streaming.bitquery.io/graphql';
 const BITQUERY_OAUTH_URL = 'https://oauth2.bitquery.io/oauth2/token';
@@ -445,8 +446,19 @@ export async function GET(request: NextRequest) {
             .reverse()
             .map((t: any) => t.price);
 
-        // Calculate Historical Volatility from candles
-        const volatilityMetrics = calculateVolatilityMetrics(filledCandles);
+        // Calculate Historical Volatility from candles (xStock data)
+        const xstockVolatility = calculateVolatilityMetrics(filledCandles);
+        
+        // Fetch real NVDA volatility from Yahoo Finance (cached)
+        // This gives us realistic IV based on actual NVDA stock movements
+        let nvdaVolatility;
+        try {
+            nvdaVolatility = await getNVDAVolatility();
+            console.log(`Using real NVDA IV: ${(nvdaVolatility.baseIV * 100).toFixed(1)}%`);
+        } catch (e) {
+            console.warn('Failed to get NVDA volatility, using xStock HV:', e);
+            nvdaVolatility = null;
+        }
 
         // Calculate bid/ask spread estimate
         const spreadBps = 10;
@@ -516,11 +528,21 @@ export async function GET(request: NextRequest) {
             volatility: calculateVolatility(sessionHigh, sessionLow, currentPrice),
             
             // Historical Volatility metrics for options pricing
-            historicalVolatility: {
-                hv20: volatilityMetrics.hv20,    // 20-period HV
-                hv60: volatilityMetrics.hv60,    // 60-period HV
-                hvAll: volatilityMetrics.hvAll,  // Full period HV
-                baseIV: volatilityMetrics.hvWeighted, // Weighted average for IV
+            // Uses real NVDA volatility from Yahoo Finance when available
+            historicalVolatility: nvdaVolatility ? {
+                hv20: nvdaVolatility.hv20,       // Real NVDA 20-day HV
+                hv60: nvdaVolatility.hv60,       // Real NVDA 60-day HV
+                hvAll: nvdaVolatility.hv90,     // Real NVDA 90-day HV
+                baseIV: nvdaVolatility.baseIV,   // Real NVDA-based IV (HV + premium)
+                source: 'nvda-yahoo-finance',
+                nvdaPrice: nvdaVolatility.lastPrice,
+                lastUpdated: nvdaVolatility.lastUpdated,
+            } : {
+                hv20: xstockVolatility.hv20,    // Fallback to xStock HV
+                hv60: xstockVolatility.hv60,
+                hvAll: xstockVolatility.hvAll,
+                baseIV: Math.max(0.35, xstockVolatility.hvWeighted), // Min 35% fallback
+                source: 'xstock-bitquery',
             },
             
             // Legacy fields

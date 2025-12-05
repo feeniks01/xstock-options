@@ -66,6 +66,9 @@ export interface StockData {
         hv60: number;    // 60-period historical volatility
         hvAll: number;   // Full period historical volatility
         baseIV: number;  // Weighted average for IV estimation
+        source?: string; // 'nvda-yahoo-finance' or 'xstock-bitquery'
+        nvdaPrice?: number; // Real NVDA stock price (if using Yahoo data)
+        lastUpdated?: string; // When NVDA data was last fetched
     };
     
     // Legacy

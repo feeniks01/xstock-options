@@ -374,8 +374,8 @@ export default function OptionsChain({ options, selectedOption, onSelectOption, 
                     {/* Table Header */}
                     <thead>
                         <tr className="bg-white/[0.02]">
-                            {/* CALLS HEADER */}
-                            {(viewMode === "calls" || viewMode === "both") && (
+                            {/* CALLS HEADER (mirrored layout - only when viewing both) */}
+                            {viewMode === "both" && (
                                 <>
                                     <th className="px-2 py-3 text-right text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">OI</th>
                                     <th className="px-2 py-3 text-right text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">Vol</th>
@@ -395,7 +395,23 @@ export default function OptionsChain({ options, selectedOption, onSelectOption, 
                                 Strike
                             </th>
                             
-                            {/* PUTS HEADER (Mirrored) */}
+                            {/* CALLS HEADER (left-aligned - when viewing calls only) */}
+                            {viewMode === "calls" && (
+                                <>
+                                    <th className="px-2 py-3 text-right text-[10px] font-medium text-green-500/80 uppercase tracking-wider">Bid</th>
+                                    <th className="px-2 py-3 text-center text-[10px] font-medium text-white/60 uppercase tracking-wider">Mid</th>
+                                    <th className="px-2 py-3 text-left text-[10px] font-medium text-red-500/80 uppercase tracking-wider">Ask</th>
+                                    <th className="px-2 py-3 text-left text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">Δ</th>
+                                    <th className="px-2 py-3 text-left text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">Γ</th>
+                                    <th className="px-2 py-3 text-left text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">Θ</th>
+                                    <th className="px-2 py-3 text-left text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">Vega</th>
+                                    <th className="px-2 py-3 text-left text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">IV</th>
+                                    <th className="px-2 py-3 text-left text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">Vol</th>
+                                    <th className="px-2 py-3 text-left text-[10px] font-medium text-blue-400/80 uppercase tracking-wider">OI</th>
+                                </>
+                            )}
+                            
+                            {/* PUTS HEADER */}
                             {(viewMode === "puts" || viewMode === "both") && (
                                 <>
                                     <th className="px-2 py-3 text-right text-[10px] font-medium text-green-500/80 uppercase tracking-wider">Bid</th>
@@ -431,17 +447,15 @@ export default function OptionsChain({ options, selectedOption, onSelectOption, 
                                         ${row.isATM ? "bg-yellow-500/[0.03]" : ""}
                                     `}
                                 >
-                                    {/* CALLS DATA */}
-                                    {(viewMode === "calls" || viewMode === "both") && row.call && (
-                                        <>
-                                            <CallRow
-                                                data={row.call}
-                                                isATM={row.isATM}
-                                                isITM={callITM || false}
-                                                isSelected={callSelected}
-                                                onClick={() => handleRowClick(row, "call")}
-                                            />
-                                        </>
+                                    {/* CALLS DATA (mirrored - when viewing both) */}
+                                    {viewMode === "both" && row.call && (
+                                        <CallRowMirrored
+                                            data={row.call}
+                                            isATM={row.isATM}
+                                            isITM={callITM || false}
+                                            isSelected={callSelected}
+                                            onClick={() => handleRowClick(row, "call")}
+                                        />
                                     )}
                                     
                                     {/* STRIKE COLUMN */}
@@ -454,6 +468,17 @@ export default function OptionsChain({ options, selectedOption, onSelectOption, 
                                     `}>
                                         ${row.strike.toFixed(2)}
                                     </td>
+                                    
+                                    {/* CALLS DATA (left-aligned - when viewing calls only) */}
+                                    {viewMode === "calls" && row.call && (
+                                        <CallRowLeftAligned
+                                            data={row.call}
+                                            isATM={row.isATM}
+                                            isITM={callITM || false}
+                                            isSelected={callSelected}
+                                            onClick={() => handleRowClick(row, "call")}
+                                        />
+                                    )}
                                     
                                     {/* PUTS DATA */}
                                     {(viewMode === "puts" || viewMode === "both") && row.put && (
@@ -496,7 +521,7 @@ export default function OptionsChain({ options, selectedOption, onSelectOption, 
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CALL ROW COMPONENT
+// CALL ROW COMPONENTS
 // ═══════════════════════════════════════════════════════════════════
 
 interface RowProps {
@@ -515,7 +540,11 @@ function formatGreek(value: number, decimals: number = 2): string {
     return value.toFixed(Math.max(decimals, 3));
 }
 
-function CallRow({ data, isATM, isITM, isSelected, onClick }: RowProps) {
+/**
+ * CallRowMirrored - Used when viewing "Both" calls and puts
+ * Columns flow right-to-left: OI, Vol, IV, Vega, Θ, Γ, Δ, Bid, Mid, Ask | Strike
+ */
+function CallRowMirrored({ data, isATM, isITM, isSelected, onClick }: RowProps) {
     const bgClass = isSelected 
         ? "bg-blue-500/10" 
         : isITM 
@@ -563,6 +592,64 @@ function CallRow({ data, isATM, isITM, isSelected, onClick }: RowProps) {
                 onClick={onClick}
             >
                 ${data.ask.toFixed(2)}
+            </td>
+        </>
+    );
+}
+
+/**
+ * CallRowLeftAligned - Used when viewing "Calls" only
+ * Columns flow left-to-right: Strike | Bid, Mid, Ask, Δ, Γ, Θ, Vega, IV, Vol, OI
+ * Same order as puts for consistency
+ */
+function CallRowLeftAligned({ data, isATM, isITM, isSelected, onClick }: RowProps) {
+    const bgClass = isSelected 
+        ? "bg-blue-500/10" 
+        : isITM 
+            ? "bg-green-500/[0.05] hover:bg-green-500/10" 
+            : "hover:bg-white/[0.03]";
+    
+    return (
+        <>
+            <td 
+                className={`
+                    px-2 py-2 text-right tabular-nums font-medium cursor-pointer transition-all
+                    ${isSelected 
+                        ? "text-white bg-orange-500 rounded-r-none rounded-l-md" 
+                        : "text-green-500"
+                    }
+                    ${bgClass}
+                `} 
+                onClick={onClick}
+            >
+                ${data.bid.toFixed(2)}
+            </td>
+            <td className={`px-2 py-2 text-center tabular-nums text-white/60 cursor-pointer ${bgClass}`} onClick={onClick}>
+                ${data.mid.toFixed(2)}
+            </td>
+            <td className={`px-2 py-2 text-left tabular-nums text-red-500 font-medium cursor-pointer ${bgClass}`} onClick={onClick}>
+                ${data.ask.toFixed(2)}
+            </td>
+            <td className={`px-2 py-2 text-left tabular-nums text-blue-400 font-medium cursor-pointer ${bgClass}`} onClick={onClick}>
+                {formatGreek(data.delta)}
+            </td>
+            <td className={`px-2 py-2 text-left tabular-nums text-white/50 cursor-pointer ${bgClass}`} onClick={onClick}>
+                {formatGreek(data.gamma, 3)}
+            </td>
+            <td className={`px-2 py-2 text-left tabular-nums text-red-400/80 cursor-pointer ${bgClass}`} onClick={onClick}>
+                {formatGreek(data.theta)}
+            </td>
+            <td className={`px-2 py-2 text-left tabular-nums text-white/50 cursor-pointer ${bgClass}`} onClick={onClick}>
+                {formatGreek(data.vega)}
+            </td>
+            <td className={`px-2 py-2 text-left tabular-nums text-white/70 cursor-pointer ${bgClass}`} onClick={onClick}>
+                {(data.iv * 100).toFixed(1)}%
+            </td>
+            <td className={`px-2 py-2 text-left tabular-nums text-white/50 cursor-pointer ${bgClass}`} onClick={onClick}>
+                {data.volume > 0 ? data.volume.toLocaleString() : '—'}
+            </td>
+            <td className={`px-2 py-2 text-left tabular-nums text-white/50 cursor-pointer ${bgClass}`} onClick={onClick}>
+                {data.openInterest > 0 ? data.openInterest.toLocaleString() : '—'}
             </td>
         </>
     );

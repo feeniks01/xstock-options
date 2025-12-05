@@ -482,7 +482,14 @@ export function adjustIVForSmile(
     T: number, // Time to expiration in years
     type: 'call' | 'put'
 ): number {
-    let iv = baseIV;
+    // ═══════════════════════════════════════════════════════════════════
+    // MINIMUM IV FLOOR
+    // xStocks/synthetic assets should have at least 25-35% IV
+    // Historical volatility from sparse trade data can be unrealistically low
+    // Real equity options typically have 20-60% IV, crypto-adjacent assets higher
+    // ═══════════════════════════════════════════════════════════════════
+    const MIN_BASE_IV = 0.30; // 30% minimum IV floor
+    let iv = Math.max(baseIV, MIN_BASE_IV);
     
     // ═══════════════════════════════════════════════════════════════════
     // TERM STRUCTURE ADJUSTMENT
@@ -526,8 +533,9 @@ export function adjustIVForSmile(
         }
     }
     
-    // Clamp to reasonable bounds: 5% to 300%
-    return Math.max(0.05, Math.min(3.0, iv));
+    // Clamp to reasonable bounds: 20% minimum (after adjustments) to 300% max
+    // The 20% floor ensures ATM options always have meaningful time value
+    return Math.max(0.20, Math.min(3.0, iv));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
