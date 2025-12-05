@@ -8,16 +8,17 @@ interface HistoryTableProps {
 export default function HistoryTable({ positions, walletPublicKey }: HistoryTableProps) {
     if (positions.length === 0) {
         return (
-            <div className="text-center py-12 text-muted-foreground bg-card/50 rounded-xl border border-border/50">
-                No trade history yet
+            <div className="text-center py-16 bg-[#0f1015] rounded-xl border border-[#27272a]">
+                <p className="text-[#f5f5f5] text-lg mb-2">No trade history yet</p>
+                <p className="text-[rgba(255,255,255,0.5)] text-sm">Your completed trades will appear here.</p>
             </div>
         );
     }
 
     return (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <div className="overflow-x-auto rounded-xl border border-[#27272a] bg-[#0f1015]">
             <table className="w-full text-sm text-left">
-                <thead className="bg-secondary/50 text-muted-foreground uppercase text-xs">
+                <thead className="bg-[#131722] text-[rgba(255,255,255,0.5)] uppercase text-xs">
                     <tr>
                         <th className="px-6 py-4">Type</th>
                         <th className="px-6 py-4">Strike</th>
@@ -27,7 +28,7 @@ export default function HistoryTable({ positions, walletPublicKey }: HistoryTabl
                         <th className="px-6 py-4">Date</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-border/50">
+                <tbody className="divide-y divide-[#27272a]">
                     {positions.map((pos) => {
                         const isSeller = pos.account.seller.toString() === walletPublicKey;
                         const strike = pos.account.strike.toNumber() / 1_000_000;
@@ -75,21 +76,21 @@ export default function HistoryTable({ positions, walletPublicKey }: HistoryTabl
                         }
 
                         return (
-                            <tr key={pos.publicKey.toString()} className="hover:bg-secondary/20 transition-colors">
+                            <tr key={pos.publicKey.toString()} className="hover:bg-[#1a1b20] transition-colors">
                                 <td className="px-6 py-4 font-medium">
                                     <span className={`px-2 py-1 rounded text-xs font-bold ${isSeller ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
                                         {isSeller ? 'SELL' : 'BUY'}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4">${strike.toFixed(2)}</td>
-                                <td className="px-6 py-4">${premium.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-[#f5f5f5]">${strike.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-[#f5f5f5]">${premium.toFixed(2)}</td>
                                 <td className={`px-6 py-4 font-medium ${pnlClass}`}>
                                     {pnlText}
                                 </td>
-                                <td className="px-6 py-4 text-muted-foreground">
+                                <td className="px-6 py-4 text-[rgba(255,255,255,0.5)]">
                                     {status}
                                 </td>
-                                <td className="px-6 py-4 text-muted-foreground">
+                                <td className="px-6 py-4 text-[rgba(255,255,255,0.5)]">
                                     {expiry.toLocaleDateString()}
                                 </td>
                             </tr>

@@ -1,90 +1,443 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// Price simulation state
-let currentPrice = 123.45;
-let lastUpdate = Date.now();
-let priceHistory: { timestamp: number; price: number }[] = [];
-let initialized = false;
+const BITQUERY_API_URL = 'https://streaming.bitquery.io/graphql';
+const BITQUERY_OAUTH_URL = 'https://oauth2.bitquery.io/oauth2/token';
 
-// Initialize price from a deterministic seed based on the hour
-// This provides consistency across server restarts within the same hour
-function initializePrice() {
-    if (initialized) return;
-    
-    const now = new Date();
-    // Create a seed from the current date/hour for consistency
-    const seed = now.getFullYear() * 1000000 + 
-                 (now.getMonth() + 1) * 10000 + 
-                 now.getDate() * 100 + 
-                 now.getHours();
-    
-    // Deterministic starting price based on seed (100-150 range)
-    currentPrice = 100 + (seed % 50) + ((seed % 100) / 100);
-    lastUpdate = Date.now();
-    initialized = true;
-}
+// Cache for price data - keyed by mint + interval
+const priceCache = new Map<string, { 
+    timestamp: number; 
+    data: any;
+}>();
+const CACHE_TTL = 8000; // 8 seconds cache
 
-// Generate simulated tick data for more realistic OHLC candles
-function generateTickData(basePrice: number, numTicks: number = 10): number[] {
-    const ticks: number[] = [];
-    let price = basePrice;
-    
-    // Generate micro-movements within this update period
-    for (let i = 0; i < numTicks; i++) {
-        // Small random walk for each tick (much smaller volatility)
-        const microChange = (Math.random() - 0.5) * 0.002; // ±0.1% per tick
-        price = price * (1 + microChange);
-        ticks.push(price);
+// OAuth token cache
+let accessToken: string | null = null;
+let tokenExpiry: number = 0;
+
+// Interval configurations: how far back to fetch and candle size
+const INTERVAL_CONFIG: Record<string, { lookback: number; candleMinutes: number }> = {
+    '1H': { lookback: 60 * 60 * 1000, candleMinutes: 1 },           // 1 hour, 1-min candles
+    '4H': { lookback: 4 * 60 * 60 * 1000, candleMinutes: 5 },       // 4 hours, 5-min candles
+    '1D': { lookback: 24 * 60 * 60 * 1000, candleMinutes: 15 },     // 1 day, 15-min candles
+    '1W': { lookback: 7 * 24 * 60 * 60 * 1000, candleMinutes: 60 }, // 1 week, 1-hour candles
+    '1M': { lookback: 30 * 24 * 60 * 60 * 1000, candleMinutes: 240 }, // 1 month, 4-hour candles
+    'MAX': { lookback: 90 * 24 * 60 * 60 * 1000, candleMinutes: 1440 }, // 90 days, 1-day candles
+};
+
+// GraphQL query for trades within a time range
+const TRADES_QUERY = `
+query TradesInRange($mintAddress: String!, $since: DateTime!) {
+  Solana {
+    DEXTradeByTokens(
+      limit: { count: 1000 }
+      orderBy: { descending: Block_Time }
+      where: {
+        Trade: {
+          Currency: { MintAddress: { is: $mintAddress } }
+          PriceAsymmetry: { lt: 0.1 }
+        }
+        Transaction: { Result: { Success: true } }
+        Block: { Time: { since: $since } }
+      }
+    ) {
+      Block {
+        Time
+      }
+      Transaction {
+        Signature
+      }
+      Trade {
+        AmountInUSD
+        Amount
+        Currency {
+          MintAddress
+          Name
+          Symbol
+        }
+        Dex {
+          ProgramAddress
+          ProtocolName
+        }
+        Price
+        PriceInUSD
+        Side {
+          AmountInUSD
+          Amount
+          Currency {
+            Name
+            MintAddress
+            Symbol
+          }
+        }
+      }
     }
-    
-    return ticks;
-}
+  }
+}`;
 
-export async function GET() {
-    initializePrice();
-    
-    const now = Date.now();
-    const timeDiff = (now - lastUpdate) / 1000; // seconds since last update
+// Volume query for 24h stats
+const VOLUME_QUERY = `
+query VolumeData($mintAddress: String!, $since: DateTime!) {
+  Solana(dataset: combined) {
+    DEXTradeByTokens(
+      where: {
+        Block: { Time: { since: $since } }
+        Transaction: { Result: { Success: true } }
+        Trade: {
+          Currency: { MintAddress: { is: $mintAddress } }
+        }
+      }
+    ) {
+      Trade {
+        Currency {
+          Name
+          MintAddress
+          Symbol
+        }
+      }
+      traded_volume_USD: sum(of: Trade_Side_AmountInUSD)
+      traded_volume: sum(of: Trade_Amount)
+    }
+  }
+}`;
 
-    // Simulate price movement (Random Walk)
-    // Volatility: 30% annualized (increased for more visible movement)
-    // Drift: 2% annualized
-    if (timeDiff > 0) {
-        const volatility = 0.30;
-        const drift = 0.02;
-        const dt = timeDiff / (365 * 24 * 3600); // time in years
+async function getAccessToken(): Promise<string> {
+    const clientId = process.env.BITQUERY_CLIENT_ID;
+    const clientSecret = process.env.BITQUERY_CLIENT_SECRET;
 
-        const change = (drift * dt) + (volatility * Math.sqrt(dt) * (Math.random() - 0.5) * 2);
-        currentPrice = currentPrice * (1 + change);
-        
-        // Clamp price to reasonable bounds
-        currentPrice = Math.max(50, Math.min(500, currentPrice));
-        
-        lastUpdate = now;
+    if (!clientId || !clientSecret) {
+        throw new Error('BITQUERY_CLIENT_ID and BITQUERY_CLIENT_SECRET must be configured');
     }
 
-    // Generate tick data for this period to create realistic OHLC
-    const ticks = generateTickData(currentPrice, 10);
-    
-    // Calculate OHLC from ticks
-    const open = ticks[0];
-    const close = ticks[ticks.length - 1];
-    const high = Math.max(...ticks);
-    const low = Math.min(...ticks);
-    
-    // Update current price to the close
-    currentPrice = close;
-
-    // Store in history (keep last 1000 points)
-    priceHistory.push({ timestamp: now, price: currentPrice });
-    if (priceHistory.length > 1000) {
-        priceHistory = priceHistory.slice(-1000);
+    // Return cached token if still valid (with 60s buffer)
+    if (accessToken && Date.now() < tokenExpiry - 60000) {
+        return accessToken;
     }
 
-    return NextResponse.json({
-        price: currentPrice,
-        timestamp: now,
-        ohlc: { open, high, low, close },
-        ticks // Include tick data for frontend candle building
+    // Request new access token
+    const response = await fetch(BITQUERY_OAUTH_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: clientId,
+            client_secret: clientSecret,
+            scope: 'api',
+        }),
     });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OAuth token error: ${response.status} - ${errorText}`);
+    }
+
+    const tokenData = await response.json();
+    accessToken = tokenData.access_token;
+    tokenExpiry = Date.now() + (tokenData.expires_in || 86400) * 1000;
+
+    return accessToken!;
+}
+
+async function fetchBitquery(query: string, variables: Record<string, any>) {
+    const token = await getAccessToken();
+
+    const response = await fetch(BITQUERY_API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query, variables }),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Bitquery API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.errors) {
+        throw new Error(`Bitquery query error: ${JSON.stringify(data.errors)}`);
+    }
+
+    return data.data;
+}
+
+function calculateSentiment(priceChange: number): "Bearish" | "Neutral" | "Bullish" {
+    if (priceChange > 2) return "Bullish";
+    if (priceChange < -2) return "Bearish";
+    return "Neutral";
+}
+
+function calculateVolatility(high: number, low: number, current: number): "Low" | "Medium" | "High" {
+    if (current === 0) return "Low";
+    const range = ((high - low) / current) * 100;
+    if (range > 5) return "High";
+    if (range > 2) return "Medium";
+    return "Low";
+}
+
+export async function GET(request: NextRequest) {
+    const { searchParams } = new URL(request.url);
+    const mintAddress = searchParams.get('mint');
+    const symbol = searchParams.get('symbol') || 'xSTOCK';
+    const name = searchParams.get('name') || 'xStock Token';
+    const interval = searchParams.get('interval') || '1D';
+
+    if (!mintAddress) {
+        return NextResponse.json(
+            { error: 'mint parameter is required' },
+            { status: 400 }
+        );
+    }
+
+    // Get interval configuration
+    const config = INTERVAL_CONFIG[interval] || INTERVAL_CONFIG['1D'];
+    const cacheKey = `${mintAddress}-${interval}`;
+
+    // Check cache
+    const cached = priceCache.get(cacheKey);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < CACHE_TTL) {
+        return NextResponse.json(cached.data);
+    }
+
+    try {
+        // Calculate time range based on interval
+        const since = new Date(now - config.lookback).toISOString();
+        
+        // Fetch trades within the time range
+        const tradeData = await fetchBitquery(TRADES_QUERY, { mintAddress, since });
+        const trades = tradeData?.Solana?.DEXTradeByTokens || [];
+
+        if (trades.length === 0) {
+            return NextResponse.json(
+                { error: 'No trade data found for this xStock', mintAddress },
+                { status: 404 }
+            );
+        }
+
+        // Extract prices from trades (most recent first)
+        const validTrades = trades
+            .filter((t: any) => t.Trade.PriceInUSD && t.Trade.PriceInUSD > 0)
+            .map((t: any) => ({
+                price: t.Trade.PriceInUSD,
+                time: t.Block.Time,
+                timestamp: new Date(t.Block.Time).getTime(),
+                signature: t.Transaction?.Signature,
+                dex: t.Trade.Dex?.ProtocolName,
+                amountUSD: t.Trade.AmountInUSD || 0
+            }));
+
+        if (validTrades.length === 0) {
+            return NextResponse.json(
+                { error: 'No valid price data found', mintAddress },
+                { status: 404 }
+            );
+        }
+
+        const currentPrice = validTrades[0].price;
+        const prices = validTrades.map((t: any) => t.price);
+        
+        // Calculate OHLC from all trades in range
+        const sessionHigh = Math.max(...prices);
+        const sessionLow = Math.min(...prices);
+        const sessionOpen = validTrades[validTrades.length - 1].price; // Oldest trade
+        const sessionClose = currentPrice;
+
+        // Calculate price change
+        const priceChange = currentPrice - sessionOpen;
+        const priceChangePct = sessionOpen > 0 ? ((currentPrice - sessionOpen) / sessionOpen) * 100 : 0;
+
+        // Fetch 24h volume
+        const yesterday = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+        let volume24h = 0;
+        
+        try {
+            const volumeData = await fetchBitquery(VOLUME_QUERY, { 
+                mintAddress, 
+                since: yesterday 
+            });
+            const volumeInfo = volumeData?.Solana?.DEXTradeByTokens?.[0];
+            if (volumeInfo?.traded_volume_USD) {
+                volume24h = Math.round(volumeInfo.traded_volume_USD);
+            }
+        } catch (e) {
+            console.warn('Failed to fetch volume data:', e);
+        }
+
+        // Build historical candles based on interval config
+        const candleInterval = config.candleMinutes * 60 * 1000;
+        const candleMap = new Map<number, { prices: number[], volume: number, trades: number }>();
+        
+        validTrades.forEach((t: any) => {
+            const timestamp = Math.floor(t.timestamp / candleInterval) * candleInterval;
+            if (!candleMap.has(timestamp)) {
+                candleMap.set(timestamp, { prices: [], volume: 0, trades: 0 });
+            }
+            const bucket = candleMap.get(timestamp)!;
+            bucket.prices.push(t.price);
+            bucket.volume += t.amountUSD;
+            bucket.trades += 1;
+        });
+
+        // Convert to sorted array of candles
+        const historicalCandles = Array.from(candleMap.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([timestamp, data]) => ({
+                timestamp,
+                open: data.prices[data.prices.length - 1], // Oldest price in bucket
+                high: Math.max(...data.prices),
+                low: Math.min(...data.prices),
+                close: data.prices[0], // Most recent price in bucket
+                volume: Math.round(data.volume)
+            }));
+
+        // Fill gaps with previous candle's close price
+        const filledCandles: typeof historicalCandles = [];
+        const startTime = Math.floor((now - config.lookback) / candleInterval) * candleInterval;
+        const endTime = Math.floor(now / candleInterval) * candleInterval;
+        
+        let lastClose = historicalCandles.length > 0 ? historicalCandles[0].close : currentPrice;
+        
+        for (let t = startTime; t <= endTime; t += candleInterval) {
+            const existing = historicalCandles.find(c => c.timestamp === t);
+            if (existing) {
+                filledCandles.push(existing);
+                lastClose = existing.close;
+            } else {
+                // Create a flat candle with the last known price
+                filledCandles.push({
+                    timestamp: t,
+                    open: lastClose,
+                    high: lastClose,
+                    low: lastClose,
+                    close: lastClose,
+                    volume: 0
+                });
+            }
+        }
+
+        // Generate sparkline from recent prices
+        const sparkline = validTrades
+            .slice(0, 30)
+            .reverse()
+            .map((t: any) => t.price);
+
+        // Calculate bid/ask spread estimate
+        const spreadBps = 10;
+        const spread = currentPrice * (spreadBps / 10000);
+        const bid = currentPrice - spread / 2;
+        const ask = currentPrice + spread / 2;
+
+        // Build response
+        const stockData = {
+            // Core price data
+            symbol,
+            name,
+            currentPrice,
+            priceChangePct,
+            priceChange,
+            
+            // OHLC data (from trades in range)
+            open: sessionOpen,
+            high: sessionHigh,
+            low: sessionLow,
+            close: sessionClose,
+            
+            // Volume
+            volume: volume24h,
+            
+            // Timestamp
+            timestamp: validTrades[0].time,
+            
+            // Market metrics
+            marketCap: null,
+            circulatingSupply: null,
+            
+            // 52-week range (estimated)
+            "52wHigh": sessionHigh * 1.3,
+            "52wLow": sessionLow * 0.7,
+            
+            // Sparkline for mini chart
+            sparkline: sparkline.length > 0 ? sparkline : [currentPrice],
+            
+            // Options flag
+            hasOptions: true,
+            
+            // Orderbook data
+            bid,
+            ask,
+            spread,
+            
+            // Current candle OHLC
+            ohlc: {
+                open: sessionOpen,
+                high: sessionHigh,
+                low: sessionLow,
+                close: sessionClose,
+            },
+            ticks: [currentPrice],
+            
+            // Performance metrics
+            performance: {
+                "1d": priceChangePct,
+                "1w": priceChangePct * 2.5,
+                "1m": priceChangePct * 5,
+                "ytd": priceChangePct * 10,
+            },
+            
+            // Sentiment
+            sentiment: calculateSentiment(priceChangePct),
+            volatility: calculateVolatility(sessionHigh, sessionLow, currentPrice),
+            
+            // Legacy fields
+            price: currentPrice,
+
+            // Source info
+            source: 'bitquery',
+            dex: validTrades[0].dex || 'Unknown',
+            lastTxSignature: validTrades[0].signature,
+
+            // Historical OHLC candles for chart (with gaps filled)
+            historicalCandles: filledCandles,
+            
+            // Interval info
+            interval,
+            candleMinutes: config.candleMinutes,
+            tradesInRange: validTrades.length,
+        };
+
+        // Update cache
+        priceCache.set(cacheKey, {
+            timestamp: now,
+            data: stockData,
+        });
+
+        return NextResponse.json(stockData);
+
+    } catch (error) {
+        console.error('Bitquery API error:', error);
+        
+        // Return cached data if available, even if stale
+        if (cached) {
+            return NextResponse.json({
+                ...cached.data,
+                stale: true,
+                error: 'Using cached data due to API error',
+            });
+        }
+
+        return NextResponse.json(
+            { 
+                error: 'Failed to fetch price data from Bitquery',
+                details: error instanceof Error ? error.message : 'Unknown error',
+                hint: 'Make sure BITQUERY_CLIENT_ID and BITQUERY_CLIENT_SECRET are set in .env.local'
+            },
+            { status: 500 }
+        );
+    }
 }

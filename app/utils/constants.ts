@@ -5,17 +5,22 @@ export interface XStock {
     name: string;
     mint: PublicKey;
     logo?: string;
+    priceMint?: PublicKey; // Mainnet mint address for fetching real price data from Bitquery
 }
 
 export const MOCK_MINT = new PublicKey("6a57JJHxnTkbb6YDWmZPtWirFpfdxLcpNqeD5zqjziiD");
 export const QUOTE_MINT = new PublicKey("5AuU5y36pg19rnVoXepsVXcoeQiX36hvAk2EGcBhktbp"); // Devnet USDC
 
+// Real NVDAx mainnet mint for price data
+export const NVDA_MAINNET_MINT = new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh");
+
 export const XSTOCKS_DEVNET: XStock[] = [
     {
-        symbol: "xSTOCK",
-        name: "Mock xStock",
-        mint: MOCK_MINT,
-        logo: "https://raw.githubusercontent.com/solana-developers/opos-asset/main/assets/CompressedCoil/metadata.json"
+        symbol: "NVDAx",
+        name: "NVIDIA xStock",
+        mint: MOCK_MINT, // Devnet mock mint for on-chain operations
+        priceMint: NVDA_MAINNET_MINT, // Real NVDAx for Bitquery price data
+        logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/684961bfb45e3c4d777b9997_Ticker%3DNVDA%2C%20Company%20Name%3DNVIDIA%20Corp%2C%20size%3D256x256.svg"
     }
 ];
 
@@ -283,12 +288,6 @@ export const XSTOCKS_MAINNET: XStock[] = [
         name: "Novo Nordisk xStock",
         mint: new PublicKey("XsfAzPzYrYjd4Dpa9BU3cusBsvWfVB9gBcyGC87S57n"),
         logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/684bf139788d618501b65727_Ticker%3DNOVO_B%2C%20Company%20Name%3DSP500%2C%20size%3D256x256.svg"
-    },
-    {
-        symbol: "NVDAx",
-        name: "NVIDIA xStock",
-        mint: new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh"),
-        logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/684961bfb45e3c4d777b9997_Ticker%3DNVDA%2C%20Company%20Name%3DNVIDIA%20Corp%2C%20size%3D256x256.svg"
     },
     {
         symbol: "OPENx",
