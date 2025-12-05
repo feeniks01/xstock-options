@@ -338,6 +338,23 @@ export default function PortfolioPage() {
     }
   }, [wallet.publicKey]);
 
+  // Calculate payoff range - must be before early returns to maintain hook order
+  const payoffRange = useMemo(() => {
+    if (!positionData) return [];
+    const start = Math.max(0, positionData.underlyingPrice * 0.5);
+    const end = positionData.underlyingPrice * 1.5;
+    const step = (end - start) / 4;
+    const points = [];
+    for (let x = start; x <= end + 0.001; x += step) {
+      const intrinsic = Math.max(0, x - positionData.strikePrice);
+      const payoff = positionData.side === "BUYER"
+        ? intrinsic * positionData.contractsCount * 100 - positionData.costBasis
+        : positionData.costBasis - intrinsic * positionData.contractsCount * 100;
+      points.push({ price: x, payoff });
+    }
+    return points;
+  }, [positionData]);
+
   const cardClass = "bg-[#0c0f15] border border-white/5 rounded-2xl p-4 md:p-5";
   const titleClass = "text-xs uppercase tracking-[0.12em] text-white/60";
   const mono = "font-mono text-white";
@@ -399,21 +416,6 @@ export default function PortfolioPage() {
 
   const priceChangeColor = displayPosition.optionPriceChange >= 0 ? "text-green-500" : "text-red-500";
   const pnlColor = displayPosition.totalPnL >= 0 ? "text-green-500" : "text-red-500";
-
-  const payoffRange = useMemo(() => {
-    const start = Math.max(0, displayPosition.underlyingPrice * 0.5);
-    const end = displayPosition.underlyingPrice * 1.5;
-    const step = (end - start) / 4;
-    const points = [];
-    for (let x = start; x <= end + 0.001; x += step) {
-      const intrinsic = Math.max(0, x - displayPosition.strikePrice);
-      const payoff = displayPosition.side === "BUYER"
-        ? intrinsic * displayPosition.contractsCount * 100 - displayPosition.costBasis
-        : displayPosition.costBasis - intrinsic * displayPosition.contractsCount * 100;
-      points.push({ price: x, payoff });
-    }
-    return points;
-  }, [displayPosition]);
 
   return (
     <div className="min-h-screen bg-[#070a0d] text-[#f5f5f5]">
