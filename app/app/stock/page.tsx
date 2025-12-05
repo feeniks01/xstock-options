@@ -9,7 +9,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import { getProgram } from "../../anchor/setup";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 import { XSTOCKS, QUOTE_MINT } from "../../utils/constants";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -111,14 +111,24 @@ export default function StockPage() {
 
     // Filter positions
     const activePositions = userPositions.filter(pos => {
+        const isBuyer = pos.account.buyer?.toString() === wallet.publicKey?.toString();
         const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString();
+        const hasBuyer = pos.account.buyer !== null;
         const isExercised = pos.account.exercised;
         const isExpired = new Date() > new Date(pos.account.expiryTs.toNumber() * 1000);
 
-        if (isSeller) {
+        // You own the position if:
+        // 1. You're the buyer (you bought it) - can exercise anytime before expiry (American-style)
+        // 2. You're the seller AND there's no buyer (you wrote it but haven't sold it) - can reclaim after expiry
+        if (isBuyer) {
+            // Buyers: show if not exercised and not expired (can exercise anytime before expiry)
+            return !isExercised && !isExpired;
+        } else if (isSeller && !hasBuyer) {
+            // Sellers who haven't sold: show if not exercised (can reclaim after expiry)
             return !isExercised;
         } else {
-            return !isExercised && !isExpired;
+            // You're the seller but someone else bought it - you don't own this position
+            return false;
         }
     });
 
@@ -260,6 +270,48 @@ export default function StockPage() {
                 program.programId
             )[0];
 
+            // Check and create token accounts if they don't exist
+            const tx = new Transaction();
+
+            // Check buyer's USDC account (needed to pay strike price)
+            const buyerQuoteAccountInfo = await connection.getAccountInfo(buyerQuoteAccount);
+            if (!buyerQuoteAccountInfo) {
+                tx.add(
+                    createAssociatedTokenAccountInstruction(
+                        wallet.publicKey,
+                        buyerQuoteAccount,
+                        wallet.publicKey,
+                        QUOTE_MINT
+                    )
+                );
+            }
+
+            // Check buyer's xStock account (needed to receive the underlying)
+            const buyerUnderlyingAccountInfo = await connection.getAccountInfo(buyerUnderlyingAccount);
+            if (!buyerUnderlyingAccountInfo) {
+                tx.add(
+                    createAssociatedTokenAccountInstruction(
+                        wallet.publicKey,
+                        buyerUnderlyingAccount,
+                        wallet.publicKey,
+                        stock.mint
+                    )
+                );
+            }
+
+            // Check seller's USDC account (needed to receive strike payment)
+            const sellerQuoteAccountInfo = await connection.getAccountInfo(sellerQuoteAccount);
+            if (!sellerQuoteAccountInfo) {
+                tx.add(
+                    createAssociatedTokenAccountInstruction(
+                        wallet.publicKey,
+                        sellerQuoteAccount,
+                        position.account.seller,
+                        QUOTE_MINT
+                    )
+                );
+            }
+
             const ix = await program.methods
                 .exercise()
                 .accounts({
@@ -282,7 +334,7 @@ export default function StockPage() {
                 }
             });
 
-            const tx = new Transaction().add(ix);
+            tx.add(ix);
 
             const { blockhash } = await connection.getLatestBlockhash();
             tx.recentBlockhash = blockhash;
@@ -773,13 +825,23 @@ export default function StockPage() {
                         ) : activePositions.length > 0 ? (
                             <div className="space-y-4 overflow-x-auto">
                                 {activePositions.map((pos) => {
-                                    const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString();
+                                    // Determine if user is seller or buyer
+                                    // - If you're the buyer, you can exercise (American-style)
+                                    // - If you're the seller AND there's no buyer, you can reclaim after expiry
+                                    // - If you're the seller AND there's a buyer, you can't do anything (buyer owns it)
+                                    const isBuyer = pos.account.buyer?.toString() === wallet.publicKey?.toString();
+                                    const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString() && !isBuyer;
+                                    const hasBuyer = pos.account.buyer !== null;
+                                    
+                                    // If you're the seller but there's a buyer, you don't own this position anymore
+                                    const actualIsSeller = isSeller && !hasBuyer;
+                                    
                                     return (
                                         <PositionCard
                                             key={pos.publicKey.toString()}
                                             position={pos}
                                             currentPrice={stockData?.currentPrice || 0}
-                                            isSeller={isSeller}
+                                            isSeller={actualIsSeller}
                                             symbol={stock.symbol}
                                             onExercise={() => handleExercise(pos)}
                                             onReclaim={() => handleReclaim(pos)}
