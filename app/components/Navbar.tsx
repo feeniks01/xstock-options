@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { TrendingUp, ExternalLink } from "lucide-react";
 
 const WalletMultiButton = dynamic(
     () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
@@ -15,17 +16,56 @@ export default function Navbar() {
     const isActive = (path: string) => pathname === path;
 
     return (
-        <nav className="border-b border-border bg-background sticky top-0 z-50">
-            <div className="container mx-auto px-6 h-16 flex justify-between items-center">
-                <Link href="/" className="text-lg font-semibold tracking-tight text-foreground hover:text-muted-foreground transition-colors">
-                    xOptions
+        <nav className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
+            <div className="container mx-auto h-16 flex justify-between items-center">
+                <Link href="/" className="flex items-center gap-3 group">
+                    <div className="flex flex-col">
+                        <span className="text-lg font-bold tracking-tight text-foreground group-hover:text-blue-400 transition-colors">
+                            xOptions
+                        </span>
+                        <span className="text-xs text-muted-foreground -mt-0.5 hidden sm:block">
+                            Decentralized Options
+                        </span>
+                    </div>
                 </Link>
 
-                <div className="hidden md:flex gap-8">
-                    {/* Links removed as per request */}
+                <div className="hidden md:flex items-center gap-6">
+                    <Link 
+                        href="/" 
+                        className={`text-sm font-medium transition-colors ${
+                            isActive('/') ? 'text-blue-400' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        Markets
+                    </Link>
+                    <Link 
+                        href="/stock" 
+                        className={`text-sm font-medium transition-colors ${
+                            isActive('/stock') ? 'text-blue-400' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        Trade
+                    </Link>
+                    <a
+                        href="https://docs.xoptions.io"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                    >
+                        Docs
+                        <ExternalLink className="w-3 h-3" />
+                    </a>
                 </div>
 
-                <WalletMultiButton className="!bg-secondary !text-secondary-foreground hover:!bg-secondary/80 !rounded-md !h-9 !px-4 !text-sm !font-medium !border !border-border" />
+                <div className="flex items-center gap-4">
+                    {/* Network Badge */}
+                    <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/50 border border-border">
+                        <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                        <span className="text-xs font-medium text-muted-foreground">Devnet</span>
+                    </div>
+
+                    <WalletMultiButton className="!bg-secondary !text-secondary-foreground hover:!bg-secondary/80 !rounded-lg !h-10 !px-4 !text-sm !font-medium !border !border-border" />
+                </div>
             </div>
         </nav>
     );

@@ -1,6 +1,14 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import {
+    priceOption,
+    impliedVolBisection,
+    timeToYears,
+    DEFAULT_RISK_FREE_RATE,
+    adjustIVForSmile,
+    type OptionPriceWithGreeks
+} from "../../../lib/options-math";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -17,13 +25,18 @@ export interface OptionData {
     gamma: number;
     theta: number;
     vega: number;
+    rho: number;
     iv: number;
     volume: number;
     openInterest: number;
     isITM: boolean;
     expiration: string;
+    intrinsicValue: number;
+    timeValue: number;
     // Reference to original on-chain option if exists
     rawOption?: any;
+    // Computed IV from market price (if available)
+    computedIV?: number;
 }
 
 export interface OptionChainRow {
@@ -63,158 +76,41 @@ const EXPIRATION_TABS = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════
-// HELPER FUNCTIONS
+// HELPER FUNCTIONS (Using options-math library)
 // ═══════════════════════════════════════════════════════════════════
 
-function calculateGreeks(strike: number, spot: number, timeToExpiry: number, iv: number = 0.35): { delta: number; gamma: number; theta: number; vega: number } {
-    // Handle edge cases
-    if (strike <= 0 || spot <= 0 || iv <= 0) {
-        return { delta: spot > strike ? 1 : 0, gamma: 0, theta: 0, vega: 0 };
-    }
-    
-    // Simplified Black-Scholes approximations
-    const moneyness = spot / strike;
-    const t = Math.max(timeToExpiry / 365, 0.001); // Convert to years
-    const sqrtT = Math.sqrt(t);
-    
-    // Cap moneyness to prevent extreme d1 values
-    const cappedMoneyness = Math.max(0.1, Math.min(10, moneyness));
-    
-    // Delta approximation
-    const d1 = (Math.log(cappedMoneyness) + (0.05 + (iv * iv) / 2) * t) / (iv * sqrtT);
-    
-    // Cap d1 to prevent numerical issues
-    const d1Capped = Math.max(-10, Math.min(10, d1));
-    const delta = 0.5 * (1 + erf(d1Capped / Math.sqrt(2)));
-    
-    // Standard normal PDF at d1
-    const nd1 = Math.exp(-d1Capped * d1Capped / 2) / Math.sqrt(2 * Math.PI);
-    
-    // Gamma approximation (ensure minimum for display)
-    const gamma = Math.max(0.0001, nd1 / (spot * iv * sqrtT));
-    
-    // Theta approximation (per day)
-    const theta = -(spot * iv * nd1) / (2 * sqrtT * 365);
-    
-    // Vega approximation (per 1% IV change)
-    const vega = Math.max(0.001, spot * sqrtT * nd1 / 100);
-    
-    return { delta, gamma, theta, vega };
-}
-
-// Error function approximation
-function erf(x: number): number {
-    const a1 = 0.254829592;
-    const a2 = -0.284496736;
-    const a3 = 1.421413741;
-    const a4 = -1.453152027;
-    const a5 = 1.061405429;
-    const p = 0.3275911;
-    const sign = x < 0 ? -1 : 1;
-    x = Math.abs(x);
-    const t = 1 / (1 + p * x);
-    const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
-    return sign * y;
-}
-
 /**
- * Calculate IV with term structure and volatility smile/skew adjustments
- * @param baseIV - Base historical volatility from market data
- * @param strike - Option strike price
- * @param spot - Current spot price
- * @param daysToExpiry - Days until expiration
- * @param type - Call or Put
- * @returns Adjusted IV
+ * Generate option data using the comprehensive Black-Scholes library
+ * This provides accurate pricing, Greeks, and IV calculations
  */
-function calculateAdjustedIV(
-    baseIV: number,
-    strike: number,
-    spot: number,
-    daysToExpiry: number,
-    type: "call" | "put"
-): number {
-    // Start with base IV from historical volatility
-    let iv = baseIV;
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // TERM STRUCTURE ADJUSTMENT
-    // Shorter expiries typically have higher IV (volatility term structure)
-    // ═══════════════════════════════════════════════════════════════════
-    if (daysToExpiry < 1) {
-        // Very short term (< 1 day): +30-50% IV premium
-        iv *= 1.4;
-    } else if (daysToExpiry < 7) {
-        // Short term (1-7 days): +15-25% IV premium
-        iv *= 1.2;
-    } else if (daysToExpiry < 30) {
-        // Medium term (7-30 days): +5-10% IV premium
-        iv *= 1.08;
-    } else if (daysToExpiry > 60) {
-        // Long term (60+ days): slight IV discount
-        iv *= 0.95;
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // VOLATILITY SMILE/SKEW ADJUSTMENT
-    // OTM options (especially puts) typically have higher IV
-    // This creates the classic "volatility smile" pattern
-    // ═══════════════════════════════════════════════════════════════════
-    const moneyness = strike / spot; // >1 = OTM call, <1 = ITM call (or OTM put)
-    const moneynessDistance = Math.abs(1 - moneyness);
-    
-    if (type === "put") {
-        // Put skew: OTM puts have higher IV (crash protection premium)
-        if (moneyness < 1) { // OTM put
-            iv *= 1 + moneynessDistance * 0.8; // Up to +40% for deep OTM puts
-        } else { // ITM put
-            iv *= 1 + moneynessDistance * 0.2;
-        }
-    } else {
-        // Call skew: slight smile on both sides
-        if (moneyness > 1) { // OTM call
-            iv *= 1 + moneynessDistance * 0.3; // Up to +15% for deep OTM calls
-        } else { // ITM call
-            iv *= 1 + moneynessDistance * 0.15;
-        }
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // FINAL BOUNDS
-    // Keep IV within reasonable range
-    // ═══════════════════════════════════════════════════════════════════
-    return Math.max(0.10, Math.min(2.50, iv)); // 10% to 250%
-}
-
 function generateOptionData(
     strike: number, 
     currentPrice: number, 
     type: "call" | "put", 
     expiryMs: number,
-    baseIV: number = 0.35 // Default fallback if no HV data
+    baseIV: number = 0.35 // Default fallback if no HV data from Bitquery
 ): OptionData {
-    const daysToExpiry = expiryMs / (24 * 60 * 60 * 1000);
+    // Convert expiry to years for Black-Scholes
+    const T = expiryMs / (365 * 24 * 60 * 60 * 1000); // Time in years
     
-    // Calculate adjusted IV with term structure and skew
-    const iv = calculateAdjustedIV(baseIV, strike, currentPrice, daysToExpiry, type);
+    // Use the options-math library for accurate pricing
+    const result: OptionPriceWithGreeks = priceOption(
+        currentPrice,  // spot
+        strike,        // strike
+        DEFAULT_RISK_FREE_RATE, // risk-free rate (5%)
+        baseIV,        // base IV from historical volatility
+        T,             // time to expiry in years
+        type           // call or put
+    );
     
-    // Calculate greeks with the adjusted IV
-    const greeks = calculateGreeks(strike, currentPrice, daysToExpiry, iv);
-    
-    // Calculate intrinsic value
-    const intrinsicCall = Math.max(0, currentPrice - strike);
-    const intrinsicPut = Math.max(0, strike - currentPrice);
-    const intrinsic = type === "call" ? intrinsicCall : intrinsicPut;
-    
-    // Calculate time value using Black-Scholes approximation
-    const timeValue = currentPrice * iv * Math.sqrt(daysToExpiry / 365) * 0.4;
-    const optionPrice = intrinsic + timeValue;
-    
-    // Bid/Ask spread (tighter for ATM, wider for OTM)
+    // Calculate bid/ask spread based on moneyness and time
+    // Tighter spreads for ATM, wider for OTM and short-dated
     const moneyness = Math.abs(currentPrice - strike) / currentPrice;
-    const spreadPct = 0.02 + moneyness * 0.05;
-    const spread = optionPrice * spreadPct;
+    const timeAdjustment = T < 0.01 ? 1.5 : T < 0.05 ? 1.2 : 1.0; // Wider for short-dated
+    const spreadPct = (0.015 + moneyness * 0.04) * timeAdjustment;
+    const spread = Math.max(0.01, result.price * spreadPct);
     
-    const mid = Math.max(0.01, optionPrice);
+    const mid = Math.max(0.01, result.price);
     const bid = Math.max(0.01, mid - spread / 2);
     const ask = mid + spread / 2;
     
@@ -224,17 +120,54 @@ function generateOptionData(
         bid: parseFloat(bid.toFixed(2)),
         ask: parseFloat(ask.toFixed(2)),
         mid: parseFloat(mid.toFixed(2)),
-        last: parseFloat((mid + (Math.random() - 0.5) * spread * 0.5).toFixed(2)),
-        delta: type === "call" ? greeks.delta : greeks.delta - 1,
-        gamma: greeks.gamma,
-        theta: greeks.theta,
-        vega: greeks.vega,
-        iv: iv,
+        last: parseFloat((mid + (Math.random() - 0.5) * spread * 0.3).toFixed(2)),
+        delta: result.delta,
+        gamma: result.gamma,
+        theta: result.theta,
+        vega: result.vega,
+        rho: result.rho,
+        iv: result.iv, // Adjusted IV with smile and term structure
         volume: 0, // No mock volume - only show for real options
         openInterest: 0, // No mock OI - only show for real options
-        isITM: type === "call" ? currentPrice > strike : currentPrice < strike,
+        isITM: result.isITM,
         expiration: new Date(Date.now() + expiryMs).toISOString(),
+        intrinsicValue: result.intrinsicValue,
+        timeValue: result.timeValue,
     };
+}
+
+/**
+ * Reverse-engineer Implied Volatility from a market price
+ * Used when we have actual option market prices (from on-chain data)
+ */
+function computeIVFromMarketPrice(
+    marketPrice: number,
+    spot: number,
+    strike: number,
+    expiryMs: number,
+    type: "call" | "put"
+): number | null {
+    const T = expiryMs / (365 * 24 * 60 * 60 * 1000);
+    
+    if (T <= 0 || marketPrice <= 0) {
+        return null;
+    }
+    
+    const result = impliedVolBisection(
+        marketPrice,
+        spot,
+        strike,
+        DEFAULT_RISK_FREE_RATE,
+        T,
+        type
+    );
+    
+    if (result.converged) {
+        return result.iv;
+    }
+    
+    // Return best guess even if not fully converged
+    return result.iv > 0.01 ? result.iv : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -290,24 +223,57 @@ export default function OptionsChain({ options, selectedOption, onSelectOption, 
             const callData = generateOptionData(strike, currentPrice, "call", selectedExpiry, baseIV);
             const putData = generateOptionData(strike, currentPrice, "put", selectedExpiry, baseIV);
             
-            // If there's a real option, override with its data
+            // If there's a real option, override with its data and compute IV
             if (realOption) {
                 const premium = realOption.account.isListed 
                     ? realOption.account.askPrice.toNumber() / 1_000_000
                     : realOption.account.premium.toNumber() / 1_000_000;
                 
                 // Calculate contracts from amount (100 shares per contract with 6 decimals)
-                // Round to nearest integer for display
                 const contracts = realOption.account.amount 
                     ? Math.round(realOption.account.amount.toNumber() / (100 * 1_000_000))
                     : 1;
                 
-                // For now, treat all real options as calls
+                // Calculate time to expiry for the real option
+                const expiryTs = realOption.account.expiryTs?.toNumber() * 1000;
+                const timeToExpiryMs = expiryTs ? expiryTs - Date.now() : selectedExpiry;
+                
+                // ═══════════════════════════════════════════════════════════════════
+                // REVERSE ENGINEER IMPLIED VOLATILITY FROM MARKET PRICE
+                // This is the key Black-Scholes inversion using bisection method
+                // ═══════════════════════════════════════════════════════════════════
+                const computedIV = computeIVFromMarketPrice(
+                    premium,           // Market price of the option
+                    currentPrice,      // Current spot price from Bitquery
+                    strike,            // Strike price
+                    timeToExpiryMs,    // Time to expiry in ms
+                    "call"             // Option type (real options are covered calls)
+                );
+                
+                // Override synthetic data with real market data
                 callData.ask = premium;
                 callData.mid = premium * 0.98;
                 callData.bid = premium * 0.96;
-                callData.openInterest = Math.max(1, contracts); // At least 1 contract, always integer
+                callData.openInterest = Math.max(1, contracts);
                 callData.rawOption = realOption;
+                callData.expiration = expiryTs ? new Date(expiryTs).toISOString() : callData.expiration;
+                
+                // Update IV if we successfully computed it from market price
+                if (computedIV !== null) {
+                    callData.computedIV = computedIV;
+                    callData.iv = computedIV; // Use computed IV for display
+                    
+                    // Re-price Greeks with the computed IV for consistency
+                    const T = timeToExpiryMs / (365 * 24 * 60 * 60 * 1000);
+                    if (T > 0) {
+                        const repriced = priceOption(currentPrice, strike, DEFAULT_RISK_FREE_RATE, computedIV, T, "call");
+                        callData.delta = repriced.delta;
+                        callData.gamma = repriced.gamma;
+                        callData.theta = repriced.theta;
+                        callData.vega = repriced.vega;
+                        callData.rho = repriced.rho;
+                    }
+                }
             }
             
             return {

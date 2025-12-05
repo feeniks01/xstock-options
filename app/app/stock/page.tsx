@@ -12,6 +12,7 @@ import { getProgram } from "../../anchor/setup";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { XSTOCKS, QUOTE_MINT } from "../../utils/constants";
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import PositionCard from "./components/PositionCard";
 import HistoryTable from "./components/HistoryTable";
@@ -167,17 +168,8 @@ export default function StockPage() {
         }
     });
 
-    const historyPositions = userPositions.filter(pos => {
-        const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString();
-        const isExercised = pos.account.exercised;
-        const isExpired = new Date() > new Date(pos.account.expiryTs.toNumber() * 1000);
-
-        if (isSeller) {
-            return isExercised;
-        } else {
-            return isExercised || isExpired;
-        }
-    });
+    // Show ALL positions in history (including open ones) for complete trade history
+    const historyPositions = userPositions;
 
     useEffect(() => {
         if (wallet.publicKey) {
@@ -514,10 +506,11 @@ export default function StockPage() {
     }
 
     return (
-        <div className="w-full px-6 space-y-3">
+        <div className="w-full p-6 space-y-3">
             {/* Back Button */}
-            <button onClick={() => router.push('/')} className="text-[rgba(255,255,255,0.5)] hover:text-[#f5f5f5] w-fit text-xs">
-                ← Back
+            <button onClick={() => router.push('/')} className="text-[rgba(255,255,255,0.5)] hover:text-[#f5f5f5] w-fit text-xs flex items-center gap-1.5 hover:gap-2 transition-all">
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back to Markets
             </button>
 
             {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -733,13 +726,13 @@ export default function StockPage() {
                             <div className="space-y-2">
                                 <button
                                     disabled
-                                    className="w-full bg-gradient-to-r from-[#3DD68C] to-[#2fb377] text-white text-base font-bold py-3 rounded-lg opacity-50 cursor-not-allowed"
+                                    className="w-full bg-gradient-to-r from-[#3DD68C] to-[#2fb377] text-white text-base font-bold py-3 rounded-lg opacity-90 cursor-not-allowed"
                                 >
                                     Buy {stock.symbol}
                                 </button>
                                 <button
                                     disabled
-                                    className="w-full bg-[#27272a] text-[#f5f5f5] text-base font-bold py-3 rounded-lg opacity-50 cursor-not-allowed"
+                                    className="w-full bg-[#27272a] text-[#f5f5f5] text-base font-bold py-3 rounded-lg opacity-90 cursor-not-allowed"
                                 >
                                     Sell {stock.symbol}
                                 </button>
@@ -1043,6 +1036,21 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
         chartInstance.current.applyNewData(historicalCandles);
         lastCandleCount.current = historicalCandles.length;
         historicalLoaded.current = true;
+        
+        // Calculate bar space to fill the chart width with all candles
+        const chartWidth = chartContainerRef.current?.clientWidth || 800;
+        const dataCount = historicalCandles.length;
+        // Leave some padding (right offset) and calculate space per bar
+        const rightOffset = 50;
+        const availableWidth = chartWidth - rightOffset;
+        // Each bar needs space for the candle + gap between candles
+        const barSpace = Math.max(6, Math.min(12, Math.floor(availableWidth / dataCount)));
+        
+        // @ts-ignore
+        chartInstance.current.setBarSpace(barSpace);
+        // Scroll to show from the beginning
+        // @ts-ignore
+        chartInstance.current.scrollToDataIndex(0);
     }, [historicalCandles]);
 
     // Update with real-time data
