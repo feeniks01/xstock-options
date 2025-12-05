@@ -653,6 +653,11 @@ export default function PortfolioPage() {
             {/* OrderTicketCard */}
             <div className={cardClass}>
               <p className={titleClass}>Close position</p>
+              {displayPosition.side === "BUYER" && (
+                <p className="text-xs text-white/50 mt-1 mb-2">
+                  American-style: Exercise anytime before expiration
+                </p>
+              )}
               <div className="mt-3 space-y-3">
                 <LabeledField label="Order type">
                   <select

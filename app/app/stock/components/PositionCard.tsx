@@ -106,6 +106,9 @@ export default function PositionCard({
                             </div>
                             <p className="text-xs text-muted-foreground">
                                 Contracts: {contracts.toFixed(2)} · Status: {isExpired ? "Expired" : isExercised ? "Exercised" : "Open"}
+                                {!isSeller && !isExpired && !isExercised && (
+                                    <span className="ml-2 text-[10px] text-orange-400/70">(American-style: exercise anytime)</span>
+                                )}
                             </p>
                         </div>
                         <div className="bg-[#111217] border border-border/60 rounded-xl px-3 py-2 text-right shrink-0">
@@ -199,6 +202,7 @@ export default function PositionCard({
                                         <button
                                             onClick={onExercise}
                                             className="bg-gradient-to-r from-orange-500 to-red-600 hover:opacity-90 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-opacity"
+                                            title="Exercise anytime before expiration (American-style)"
                                         >
                                             Exercise this option
                                         </button>
@@ -289,6 +293,7 @@ export default function PositionCard({
                         <button
                             onClick={isSeller ? onReclaim : onExercise}
                             className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:opacity-90 text-white font-semibold py-3 rounded-xl transition-opacity"
+                            title={isSeller ? undefined : "Exercise anytime before expiration (American-style)"}
                         >
                             {isSeller ? "Review closing" : "Review / Exercise"}
                         </button>

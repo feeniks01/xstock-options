@@ -12,8 +12,9 @@ This document compares your **xStock Options** platform with **Hyperliquid's tra
 A **covered call options** marketplace built on Solana where:
 - **Sellers** lock up 100 xStock tokens as collateral in a vault
 - **Buyers** pay a premium to acquire the right (but not obligation) to buy those tokens at a strike price
+- **American-style options**: Buyers can exercise at any time before expiration (not just at expiry)
 - Options have fixed expiry timestamps
-- Options can be exercised before expiry or allowed to expire worthless
+- Options can be exercised early when profitable or allowed to expire worthless
 
 ### Key Characteristics
 
@@ -39,10 +40,11 @@ A **covered call options** marketplace built on Solana where:
 - Secondary market for options trading
 - No leverage - requires full collateral
 
-**5. Settlement**
-- Exercise: Buyer pays strike price + already paid premium → receives 100 xStock
+**5. Settlement (American-Style)**
+- **Early Exercise**: Buyer can exercise at any time before expiration when profitable (e.g., deep ITM, dividend capture)
+- Exercise: Buyer pays strike price (premium already paid) → receives 100 xStock
 - Expiry: If not exercised, seller reclaims tokens, buyer loses premium
-- Manual exercise decision (buyer chooses when/if to exercise)
+- Manual exercise decision (buyer chooses when/if to exercise, with full flexibility)
 
 **6. Capital Requirements**
 - **Seller**: Must own 100 xStock tokens (full value of underlying)

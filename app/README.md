@@ -1,6 +1,8 @@
 # xOptions
 
-A permissionless platform for trading options on tokenized stocks on Solana.
+A permissionless platform for trading **American-style options** on tokenized stocks on Solana.
+
+**American-Style Options**: Buyers can exercise their options at any time before expiration, providing flexibility to capture profits early or manage positions proactively.
 
 ## Prerequisites
 

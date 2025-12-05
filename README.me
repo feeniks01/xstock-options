@@ -2,11 +2,13 @@
 
 xStock Options is a Solana based covered call options protocol built on synthetic equities from xStocks, using USDC as collateral.
 
+**American-Style Options**: All options are American-style, meaning buyers can exercise their options at any time before expiration, not just at expiry. This provides flexibility to capture profits early, take advantage of dividend events, or manage risk proactively.
+
 It allows users to:
 - Lock xStock (synthetic AAPL, TSLA, etc.) into a vault
 - List covered calls with strike, expiry, and premium
 - Buy and resell options on a simple secondary market
-- Exercise options to receive the underlying xStock
+- **Exercise options anytime before expiration** (American-style) to receive the underlying xStock
 - Reclaim stock if the option was never sold or expires
 
 ## Architecture
@@ -48,8 +50,9 @@ It allows users to:
    - Current owner calls `list_for_sale` with a new ask price.
    - CoveredCall is marked as listed again.
 
-4. **Exercise**
-   - Buyer calls `exercise` before expiry.
+4. **Exercise** (American-Style)
+   - Buyer can call `exercise` **at any time** before the expiration timestamp.
+   - This is American-style exercise, allowing early exercise when profitable (e.g., deep ITM, dividend capture).
    - Program transfers strike amount in USDC from buyer to seller.
    - PDA vault sends xStock to the buyer.
    - CoveredCall is marked as exercised.

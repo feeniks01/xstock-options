@@ -3,6 +3,13 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 declare_id!("9SPZCWiT2xcYA7DDZTpSbhGFdDugSr9VqeQ7PVFBFgN");
 
+/// xStock Options Program
+/// 
+/// A Solana program for trading American-style covered call options on xStock synthetic equities.
+/// 
+/// **American-Style Options**: Buyers can exercise options at any time before the expiration
+/// timestamp, providing flexibility to capture profits early, take advantage of favorable
+/// market conditions, or manage risk proactively.
 #[program]
 pub mod xstock_options {
     use super::*;
@@ -84,12 +91,18 @@ pub mod xstock_options {
         Ok(())
     }
 
+    /// Exercise the option (American-style: can be exercised anytime before expiration)
+    /// 
+    /// The buyer can exercise the option at any time before the expiration timestamp.
+    /// This is American-style exercise, giving buyers flexibility to exercise early
+    /// when it's profitable (e.g., deep ITM, dividend capture, etc.).
     pub fn exercise(ctx: Context<Exercise>) -> Result<()> {
         let covered_call = &mut ctx.accounts.covered_call;
         require!(covered_call.buyer == Some(ctx.accounts.buyer.key()), ErrorCode::Unauthorized);
         require!(!covered_call.exercised, ErrorCode::OptionAlreadyExercised);
         require!(!covered_call.cancelled, ErrorCode::OptionCancelled);
         
+        // American-style: allow exercise anytime before expiration
         let clock = Clock::get()?;
         require!(clock.unix_timestamp < covered_call.expiry_ts, ErrorCode::OptionExpired);
 
