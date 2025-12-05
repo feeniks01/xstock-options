@@ -60,6 +60,14 @@ export interface StockData {
     sentiment: "Bearish" | "Neutral" | "Bullish";
     volatility: "Low" | "Medium" | "High";
     
+    // Historical Volatility metrics for options pricing
+    historicalVolatility?: {
+        hv20: number;    // 20-period historical volatility
+        hv60: number;    // 60-period historical volatility
+        hvAll: number;   // Full period historical volatility
+        baseIV: number;  // Weighted average for IV estimation
+    };
+    
     // Legacy
     price: number;
 
