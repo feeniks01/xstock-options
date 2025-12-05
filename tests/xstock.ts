@@ -129,9 +129,9 @@ describe("xstock_options", () => {
       xstockMint,
       sellerXstockAccount,
       userKeypair,
-      14953_000_000 // 14953 xStock (6 decimals)
+      150_000_000_000 // 150,000 xStock
     );
-    console.log("Minted 14953 xStock to user");
+    console.log("Minted 150,000 xStock");
 
     await mintTo(
       provider.connection,
@@ -141,7 +141,7 @@ describe("xstock_options", () => {
       userKeypair,
       10000 * 1_000_000 // 10,000 USDC
     );
-    console.log("Minted 10,000 USDC to user");
+    console.log("Minted 10,000 Test USDC");
 
     await mintTo(
       provider.connection,
@@ -186,9 +186,9 @@ describe("xstock_options", () => {
         mintAuthority: signer,
         payer: signer,
         data: {
-          name: "Mock USDC",
+          name: "USDC Test",
           symbol: "USDC",
-          uri: "https://shdw-drive.genesysgo.net/6tcnBSybPG7piEDShBcrVtYJDPSvGrDbVvXmXKpzBvWP/usdc.json",
+          uri: "https://raw.githubusercontent.com/feeniks01/xstock-options/refs/heads/main/assets/usdc_test.json",
           sellerFeeBasisPoints: 0,
           creators: null,
           collection: null,

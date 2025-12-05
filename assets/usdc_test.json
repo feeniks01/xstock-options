@@ -1,0 +1,12 @@
+{
+    "name": "USDC Test",
+    "symbol": "USDC",
+    "description": "USDC Test",
+    "image": "https://raw.githubusercontent.com/feeniks01/xstock-options/refs/heads/main/assets/usdc_logo.png",
+    "attributes": [
+      {
+        "trait_type": "Item",
+        "value": "xStock"
+      }
+    ]
+  }
