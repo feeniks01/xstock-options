@@ -6,6 +6,9 @@ import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import toast from "react-hot-toast";
 
+// Disable static generation for this page
+export const dynamic = 'force-dynamic';
+
 // Lightweight mock endpoint to visualize an owned position without needing
 // an active wallet/positions. This page is only for testing/demo.
 export default function MockPositionPage() {
@@ -13,20 +16,29 @@ export default function MockPositionPage() {
 
   // Mock position data modeled after the owned-position reference
   const mockPosition = useMemo(() => {
-    return {
-      publicKey: new PublicKey("11111111111111111111111111111111"),
-      account: {
-        strike: new BN(250 * 100_000_000), // $250 strike with 8 decimals
-        premium: new BN(19.4 * 1_000_000), // $19.40 premium (6 decimals)
-        expiryTs: new BN(Math.floor(new Date("2026-05-15").getTime() / 1000)),
-        exercised: false,
-        isListed: false,
-        askPrice: new BN(0),
-        seller: new PublicKey("22222222222222222222222222222222"),
-        buyer: new PublicKey("33333333333333333333333333333333"),
-      },
-    };
+    try {
+      return {
+        publicKey: new PublicKey("11111111111111111111111111111111"),
+        account: {
+          strike: new BN(250 * 100_000_000), // $250 strike with 8 decimals
+          premium: new BN(19.4 * 1_000_000), // $19.40 premium (6 decimals)
+          expiryTs: new BN(Math.floor(new Date("2026-05-15").getTime() / 1000)),
+          exercised: false,
+          isListed: false,
+          askPrice: new BN(0),
+          seller: new PublicKey("22222222222222222222222222222222"),
+          buyer: new PublicKey("33333333333333333333333333333333"),
+        },
+      };
+    } catch (e) {
+      // Fallback if PublicKey construction fails during SSR
+      return null;
+    }
   }, []);
+
+  if (!mockPosition) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto px-6 py-10 space-y-6">
