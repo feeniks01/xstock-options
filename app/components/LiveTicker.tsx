@@ -1,7 +1,7 @@
 "use client";
 
 import { XSTOCKS, MOCK_MINT } from "../utils/constants";
-import { useMemo } from "react";
+import { MOCK_PRICES, getMockPrice, getMockChange } from "../utils/mockPrices";
 
 interface TickerItem {
   symbol: string;
@@ -12,29 +12,19 @@ interface TickerItem {
 
 // Generate mock prices - in production, fetch real data
 function generateMockPrices(): TickerItem[] {
-  const basePrices: Record<string, number> = {
-    NVDAx: 183.12,
-    AMZNx: 118.55,
-    AAPLx: 157.20,
-    GOOGLx: 142.85,
-    MSFTx: 378.45,
-    METAx: 325.67,
-    TSLAx: 248.90,
-    NFLXx: 456.32,
-    JPMx: 168.45,
-    Vx: 256.78,
-  };
-
-  return XSTOCKS.slice(0, 15).map((stock) => ({
-    symbol: stock.symbol,
-    price: basePrices[stock.symbol] || Math.floor(Math.random() * 200 + 50),
-    change: parseFloat((Math.random() * 6 - 3).toFixed(2)),
-    logo: stock.logo,
-  }));
+  // Filter to only show stocks that have prices defined, then take first 15
+  return XSTOCKS.filter((stock) => MOCK_PRICES[stock.symbol] !== undefined)
+    .slice(0, 15)
+    .map((stock) => ({
+      symbol: stock.symbol,
+      price: getMockPrice(stock.symbol),
+      change: getMockChange(stock.symbol),
+      logo: stock.logo,
+    }));
 }
 
 export default function LiveTicker() {
-  const tickerItems = useMemo(() => generateMockPrices(), []);
+  const tickerItems = generateMockPrices();
 
   return (
     <div className="w-full bg-background/80 backdrop-blur-sm border-b border-border overflow-hidden py-3">

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { Check, ArrowRight } from "lucide-react";
+import { XSTOCKS } from "../utils/constants";
+import { MOCK_PRICES, getMockPrice, getMockChange } from "../utils/mockPrices";
 
 interface FeaturedMarketProps {
   symbol?: string;
@@ -14,24 +16,34 @@ interface FeaturedMarketProps {
 }
 
 export default function FeaturedMarket({
-  symbol = "NVDAx",
-  name = "NVIDIA xStock",
-  price = 182.93,
-  change = 0.43,
-  logo = "/nvidiax_logo.png",
+  symbol,
+  name,
+  price,
+  change,
+  logo,
   volume = "High",
 }: FeaturedMarketProps) {
+  // Find the first stock with mock prices, or default to NVDAx
+  const featuredStock = symbol 
+    ? XSTOCKS.find((s) => s.symbol === symbol)
+    : XSTOCKS.find((s) => MOCK_PRICES[s.symbol] !== undefined);
+  
+  const displaySymbol = symbol || featuredStock?.symbol || "NVDAx";
+  const displayName = name || featuredStock?.name || "NVIDIA xStock";
+  const displayLogo = logo || featuredStock?.logo || "/nvidiax_logo.png";
+  const displayPrice = price ?? (MOCK_PRICES[displaySymbol] !== undefined ? getMockPrice(displaySymbol) : 182.93);
+  const displayChange = change ?? (MOCK_PRICES[displaySymbol] !== undefined ? getMockChange(displaySymbol) : 0.43);
   // Generate sparkline data
   const sparklineData = useMemo(() => {
     const points: number[] = [];
-    let value = price * 0.98;
+    let value = displayPrice * 0.98;
     for (let i = 0; i < 24; i++) {
       value += (Math.random() - 0.48) * 2;
       points.push(value);
     }
-    points.push(price);
+    points.push(displayPrice);
     return points;
-  }, [price]);
+  }, [displayPrice]);
 
   const sparklinePath = useMemo(() => {
     const min = Math.min(...sparklineData);
@@ -50,7 +62,7 @@ export default function FeaturedMarket({
       .join(" ");
   }, [sparklineData]);
 
-  const isPositive = change >= 0;
+  const isPositive = displayChange >= 0;
 
   return (
     <div className="relative bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-blue-500/5 border border-blue-500/20 rounded-xl p-6 overflow-hidden group hover:border-blue-500/40 transition-all">
@@ -59,11 +71,11 @@ export default function FeaturedMarket({
       
       <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-4">
-          {logo && (
+          {displayLogo && (
             <div className="relative">
               <img
-                src={logo}
-                alt={symbol}
+                src={displayLogo}
+                alt={displaySymbol}
                 className="w-16 h-16 rounded-full ring-2 ring-blue-500/30"
               />
               <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
@@ -73,7 +85,7 @@ export default function FeaturedMarket({
           )}
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-2xl font-bold text-foreground">{symbol}</h3>
+              <h3 className="text-2xl font-bold text-foreground">{displaySymbol}</h3>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white">
                 Featured
               </span>
@@ -81,7 +93,7 @@ export default function FeaturedMarket({
                 ACTIVE
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">{name}</p>
+            <p className="text-sm text-muted-foreground">{displayName}</p>
           </div>
         </div>
 
@@ -90,7 +102,7 @@ export default function FeaturedMarket({
           <div className="text-right">
             <div className="flex items-center gap-3">
               <span className="text-3xl font-bold text-foreground font-mono">
-                ${price.toFixed(2)}
+                ${displayPrice.toFixed(2)}
               </span>
               <span
                 className={`text-lg font-semibold px-2 py-1 rounded ${
@@ -100,7 +112,7 @@ export default function FeaturedMarket({
                 }`}
               >
                 {isPositive ? "+" : ""}
-                {change.toFixed(2)}%
+                {displayChange.toFixed(2)}%
               </span>
             </div>
             <p className="text-sm text-muted-foreground mt-1">

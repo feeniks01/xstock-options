@@ -158,14 +158,6 @@ export default function DashboardPage() {
               defaultExpanded={false}
             />
           </div>
-
-          {/* Connect Wallet Prompt (if not connected) */}
-          {!wallet.publicKey && (
-            <div className="fixed bottom-6 right-6 bg-blue-500 text-white px-6 py-3 rounded-xl shadow-lg shadow-blue-500/25 flex items-center gap-3 animate-bounce">
-              <Wallet className="w-5 h-5" />
-              <span className="font-medium">Connect wallet to start trading</span>
-            </div>
-          )}
         </main>
       </div>
   );

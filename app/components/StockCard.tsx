@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { XStock, MOCK_MINT } from "../utils/constants";
+import { MOCK_PRICES, getMockPrice, getMockChange } from "../utils/mockPrices";
 
 interface StockCardProps {
   stock: XStock;
@@ -26,8 +27,13 @@ export default function StockCard({
   isSelected = false,
 }: StockCardProps) {
   const isMock = stock.mint.toString() === MOCK_MINT.toString();
-  const displayPrice = price ?? (isMock ? 183.12 : Math.floor(Math.random() * 200 + 50));
-  const displayChange = change ?? (Math.random() * 6 - 3);
+  // Use mock prices if available, otherwise fallback to random or default
+  const displayPrice = price ?? (MOCK_PRICES[stock.symbol] !== undefined 
+    ? getMockPrice(stock.symbol) 
+    : (isMock ? 183.12 : Math.floor(Math.random() * 200 + 50)));
+  const displayChange = change ?? (MOCK_PRICES[stock.symbol] !== undefined
+    ? getMockChange(stock.symbol)
+    : (Math.random() * 6 - 3));
   const displayIV = impliedVol ?? Math.floor(Math.random() * 40 + 15);
   const isPositive = displayChange >= 0;
   const isOptionsActive = isMock || isActive;

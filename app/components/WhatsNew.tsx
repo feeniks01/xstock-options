@@ -38,14 +38,6 @@ export default function WhatsNew() {
           </li>
         ))}
       </ul>
-
-      <Link
-        href="/changelog"
-        className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-      >
-        View full changelog
-        <ArrowRight className="w-3.5 h-3.5" />
-      </Link>
     </div>
   );
 }

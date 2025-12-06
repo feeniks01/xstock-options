@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { XSTOCKS } from "../utils/constants";
+import { MOCK_PRICES, getMockPrice, getMockChange } from "../utils/mockPrices";
 
 interface Mover {
   symbol: string;
@@ -12,12 +14,15 @@ interface Mover {
   logo?: string;
 }
 
-const mockMovers: Mover[] = [
-  { symbol: "NVDAx", name: "NVIDIA", price: 183.12, change: 2.45, logo: "/nvidiax_logo.png" },
-  { symbol: "TSLAx", name: "Tesla", price: 248.90, change: 3.21, logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/684aaf9559b2312c162731f5_Ticker%3DTSLA%2C%20Company%20Name%3DTesla%20Inc.%2C%20size%3D256x256.svg" },
-  { symbol: "AMZNx", name: "Amazon", price: 118.55, change: -1.24, logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/68497d354d7140b01657a793_Ticker%3DAMZN%2C%20Company%20Name%3DAmazon.com%20Inc.%2C%20size%3D256x256.svg" },
-  { symbol: "METAx", name: "Meta", price: 325.67, change: 1.89, logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/68497dee3db1bae97b91ac05_Ticker%3DMETA%2C%20Company%20Name%3DMeta%20Platforms%20Inc.%2C%20size%3D256x256.svg" },
-];
+// Generate movers from stocks that have mock prices
+const mockMovers: Mover[] = XSTOCKS.filter((stock) => MOCK_PRICES[stock.symbol] !== undefined)
+  .map((stock) => ({
+    symbol: stock.symbol,
+    name: stock.name.replace(" xStock", ""),
+    price: getMockPrice(stock.symbol),
+    change: getMockChange(stock.symbol),
+    logo: stock.logo,
+  }));
 
 export default function MarketMovers() {
   const gainers = useMemo(() => mockMovers.filter(m => m.change > 0).sort((a, b) => b.change - a.change), []);
