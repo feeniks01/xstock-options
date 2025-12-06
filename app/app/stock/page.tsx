@@ -588,15 +588,35 @@ export default function StockPage() {
             {/* ═══════════════════════════════════════════════════════════════════ */}
             {stockData && (
                 <div className="grid grid-cols-5 gap-2">
-                    {/* OHLC Block */}
-                    <Tooltip text="Opening price for the selected time interval">
+                    {/* Performance Block */}
+                    <Tooltip text="Performance metrics across different time periods">
                         <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 h-[72px] hover:border-[#3f3f46] transition-colors cursor-help">
-                            <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">OHLC</p>
-                            <div className="grid grid-cols-2 gap-x-2 text-xs">
-                                <div><span className="text-[rgba(255,255,255,0.4)]">O</span> <span className="font-semibold text-[#f5f5f5]">{stockData.open.toFixed(2)}</span></div>
-                                <div><span className="text-[rgba(255,255,255,0.4)]">H</span> <span className="font-semibold text-[#f5f5f5]">{stockData.high.toFixed(2)}</span></div>
-                                <div><span className="text-[rgba(255,255,255,0.4)]">L</span> <span className="font-semibold text-[#f5f5f5]">{stockData.low.toFixed(2)}</span></div>
-                                <div><span className="text-[rgba(255,255,255,0.4)]">C</span> <span className="font-semibold text-[#f5f5f5]">{stockData.close.toFixed(2)}</span></div>
+                            <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">PERFORMANCE</p>
+                            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[rgba(255,255,255,0.4)]">1D</span>
+                                    <span className={`font-semibold ${stockData.performance["1d"] >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                        {stockData.performance["1d"] >= 0 ? "+" : ""}{stockData.performance["1d"].toFixed(2)}%
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[rgba(255,255,255,0.4)]">1W</span>
+                                    <span className={`font-semibold ${stockData.performance["1w"] >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                        {stockData.performance["1w"] >= 0 ? "+" : ""}{stockData.performance["1w"].toFixed(2)}%
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[rgba(255,255,255,0.4)]">1M</span>
+                                    <span className={`font-semibold ${stockData.performance["1m"] >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                        {stockData.performance["1m"] >= 0 ? "+" : ""}{stockData.performance["1m"].toFixed(2)}%
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[rgba(255,255,255,0.4)]">YTD</span>
+                                    <span className={`font-semibold ${stockData.performance["ytd"] >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                        {stockData.performance["ytd"] >= 0 ? "+" : ""}{stockData.performance["ytd"].toFixed(2)}%
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </Tooltip>
@@ -743,7 +763,7 @@ export default function StockPage() {
                             </div>
 
                             {/* Performance Card - flex-1 to fill space */}
-                            <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-4 flex-1">
+                            {/* <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-4 flex-1">
                                 <p className="text-[10px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider font-medium mb-3">Performance</p>
                                 <div className="space-y-2">
                                     {Object.entries(stockData.performance).map(([period, value]) => (
@@ -755,7 +775,7 @@ export default function StockPage() {
                                         </div>
                                     ))}
                                 </div>
-                            </div>
+                            </div> */}
 
                             {/* Trade Actions */}
                             <div className="space-y-2">
