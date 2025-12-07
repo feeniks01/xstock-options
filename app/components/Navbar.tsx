@@ -17,16 +17,16 @@ export default function Navbar() {
 
     return (
         <nav className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
-            <div className="container mx-auto h-16 flex justify-between items-center">
+            <div className="container mx-auto h-16 flex justify-between items-center" style={{
+                    maxWidth: "100%",
+                    padding: "0 10px"
+                }}>
                 <Link href="/" className="flex items-center gap-3 group">
-                    <div className="flex flex-col">
-                        <span className="text-lg font-bold tracking-tight text-foreground group-hover:text-blue-400 transition-colors">
-                            xOptions
-                        </span>
-                        <span className="text-xs text-muted-foreground -mt-0.5 hidden sm:block">
-                            On-Chain Options
-                        </span>
-                    </div>
+                    <img 
+                        src="/xOptions_logo.png" 
+                        alt="xOptions" 
+                        className="h-8 w-auto"
+                    />
                 </Link>
 
                 <div className="hidden md:flex items-center gap-6">
