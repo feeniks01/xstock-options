@@ -45,4 +45,3 @@ next-env.d.ts
 
 # Markdown files (except README.md)
 *.md
-!README.md
