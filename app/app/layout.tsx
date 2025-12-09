@@ -5,6 +5,7 @@ import AppWalletProvider from "../components/AppWalletProvider";
 import Navbar from "../components/Navbar";
 import LiveTicker from "../components/LiveTicker";
 import ToastProvider from "../components/ToastProvider";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +48,7 @@ export default function RootLayout({
           </div>
           <ToastProvider />
         </AppWalletProvider>
+        <Analytics />
       </body>
     </html>
   );
