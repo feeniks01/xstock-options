@@ -57,6 +57,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
+      console.error('Supabase error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
+
       // Check if it's a duplicate email error
       if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
         return NextResponse.json(
@@ -65,9 +72,27 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      console.error('Supabase error:', error);
+      // Check if table doesn't exist
+      if (error.code === '42P01' || error.message.includes('does not exist')) {
+        return NextResponse.json(
+          { error: 'Database table not found. Please create the subscribers table in Supabase.' },
+          { status: 500 }
+        );
+      }
+
+      // Check for permission errors
+      if (error.code === '42501' || error.message.includes('permission denied')) {
+        return NextResponse.json(
+          { error: 'Database permission error. Please check your Supabase RLS policies.' },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json(
-        { error: 'Failed to subscribe. Please try again later.' },
+        { 
+          error: 'Failed to subscribe. Please try again later.',
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        },
         { status: 500 }
       );
     }
@@ -83,8 +108,12 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Subscription API error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'An unexpected error occurred. Please try again later.' },
+      { 
+        error: 'An unexpected error occurred. Please try again later.',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      },
       { status: 500 }
     );
   }
