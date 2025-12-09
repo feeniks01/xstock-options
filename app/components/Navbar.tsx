@@ -23,8 +23,8 @@ export default function Navbar() {
                 }}>
                 <Link href="/" className="flex items-center gap-3 group">
                     <img 
-                        src="/xOptions_logo.png" 
-                        alt="xOptions" 
+                        src="/OptionsFi_logo.png" 
+                        alt="OptionsFi" 
                         className="h-8 w-auto"
                     />
                 </Link>
