@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, ExternalLink } from "lucide-react";
 
 const WalletMultiButton = dynamic(
     () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
@@ -46,15 +45,14 @@ export default function Navbar() {
                     >
                         Trade
                     </Link>
-                    <a
-                        href="https://github.com/feeniks01/xstock-options/blob/main/README.md"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                    <Link 
+                        href="/docs" 
+                        className={`text-sm font-medium transition-colors ${
+                            isActive('/docs') ? 'text-blue-400' : 'text-muted-foreground hover:text-foreground'
+                        }`}
                     >
                         Docs
-                        <ExternalLink className="w-3 h-3" />
-                    </a>
+                    </Link>
                 </div>
 
                 <div className="flex items-center gap-4">
