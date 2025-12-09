@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseServerClient } from '../../../../lib/supabase';
 
 /**
  * POST /api/auth/verify
  * 
  * Verifies an access code for waitlist bypass.
- * Access codes are stored in BYPASS_ACCESS_CODES env variable (comma-separated).
+ * Access codes are stored in Supabase 'access_codes' table.
  * 
  * On success, sets a secure HTTP-only cookie to persist the session.
  */
@@ -20,25 +21,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get valid access codes from environment variable
-    // Format: comma-separated list, e.g., "code1,code2,code3"
-    const validCodes = process.env.BYPASS_ACCESS_CODES?.split(',').map(c => c.trim()) || [];
+    const code = accessCode.trim();
 
-    if (validCodes.length === 0) {
-      return NextResponse.json(
-        { error: 'Access system not configured' },
-        { status: 503 }
-      );
+    // Get Supabase client
+    const supabase = getSupabaseServerClient();
+    
+    if (!supabase) {
+      // Fallback to env variable if Supabase not configured
+      return verifyWithEnvVar(code);
     }
 
-    // Verify the access code
-    const isValid = validCodes.includes(accessCode.trim());
+    // Query the access_codes table
+    const { data: accessCodeData, error: fetchError } = await supabase
+      .from('access_codes')
+      .select('*')
+      .eq('code', code)
+      .single();
 
-    if (!isValid) {
+    if (fetchError || !accessCodeData) {
       return NextResponse.json(
         { error: 'Invalid access code' },
         { status: 401 }
       );
+    }
+
+    // Check if code is active
+    if (!accessCodeData.is_active) {
+      return NextResponse.json(
+        { error: 'This access code has been deactivated' },
+        { status: 401 }
+      );
+    }
+
+    // Check if code has expired
+    if (accessCodeData.expires_at && new Date(accessCodeData.expires_at) < new Date()) {
+      return NextResponse.json(
+        { error: 'This access code has expired' },
+        { status: 401 }
+      );
+    }
+
+    // Check if code has reached max uses
+    if (accessCodeData.max_uses !== null && accessCodeData.used_count >= accessCodeData.max_uses) {
+      return NextResponse.json(
+        { error: 'This access code has reached its maximum uses' },
+        { status: 401 }
+      );
+    }
+
+    // Update usage tracking
+    const { error: updateError } = await supabase
+      .from('access_codes')
+      .update({
+        used_at: accessCodeData.used_at || new Date().toISOString(), // Only set first use
+        used_count: (accessCodeData.used_count || 0) + 1,
+      })
+      .eq('id', accessCodeData.id);
+
+    if (updateError) {
+      console.error('Failed to update access code usage:', updateError);
+      // Continue anyway - don't block access due to tracking failure
     }
 
     // Create response with success
@@ -69,38 +111,49 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Generates a simple bypass token.
- * In production, you might want to use a more secure token generation method.
+ * Fallback: Verify using environment variable if Supabase is not configured
+ */
+function verifyWithEnvVar(code: string): NextResponse {
+  const validCodes = process.env.BYPASS_ACCESS_CODES?.split(',').map(c => c.trim()) || [];
+
+  if (validCodes.length === 0) {
+    return NextResponse.json(
+      { error: 'Access system not configured' },
+      { status: 503 }
+    );
+  }
+
+  const isValid = validCodes.includes(code);
+
+  if (!isValid) {
+    return NextResponse.json(
+      { error: 'Invalid access code' },
+      { status: 401 }
+    );
+  }
+
+  const response = NextResponse.json(
+    { success: true, message: 'Access granted' },
+    { status: 200 }
+  );
+
+  response.cookies.set('bypass_token', generateBypassToken(), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 30,
+    path: '/',
+  });
+
+  return response;
+}
+
+/**
+ * Generates a bypass token for cookie storage.
  */
 function generateBypassToken(): string {
   const secret = process.env.BYPASS_TOKEN_SECRET || 'default-secret-change-me';
   const timestamp = Date.now();
-  // Simple token: base64 encoded timestamp + secret hash
   const tokenData = `${timestamp}:${secret}`;
   return Buffer.from(tokenData).toString('base64');
-}
-
-/**
- * Validates a bypass token from cookie.
- * Exported for use in middleware or other routes.
- */
-export function validateBypassToken(token: string | undefined): boolean {
-  if (!token) return false;
-  
-  try {
-    const secret = process.env.BYPASS_TOKEN_SECRET || 'default-secret-change-me';
-    const decoded = Buffer.from(token, 'base64').toString('utf-8');
-    const [timestamp, tokenSecret] = decoded.split(':');
-    
-    // Check if secret matches
-    if (tokenSecret !== secret) return false;
-    
-    // Check if token is not expired (30 days)
-    const tokenAge = Date.now() - parseInt(timestamp, 10);
-    const maxAge = 60 * 60 * 24 * 30 * 1000; // 30 days in ms
-    
-    return tokenAge < maxAge;
-  } catch {
-    return false;
-  }
 }
