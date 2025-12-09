@@ -46,15 +46,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert email into subscribers table
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('subscribers')
       .insert([
         { 
           email: email.trim().toLowerCase() 
         }
-      ])
-      .select()
-      .single();
+      ]);
 
     if (error) {
       console.error('Supabase error details:', {
@@ -100,8 +98,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         success: true, 
-        message: 'Successfully subscribed!',
-        data 
+        message: 'Successfully subscribed!'
       },
       { status: 200 }
     );
