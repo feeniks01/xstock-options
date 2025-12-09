@@ -9,6 +9,7 @@ import FeaturedMarket from "../components/FeaturedMarket";
 import StockCard from "../components/StockCard";
 import WhatsNew from "../components/WhatsNew";
 import MarketMovers from "../components/MarketMovers";
+import ComingSoonPage from "../components/ComingSoonPage";
 import { Zap, TrendingUp, Eye, Clock, Wallet, ChevronDown } from "lucide-react";
 
 // Categorize stocks
@@ -85,6 +86,14 @@ function CategorySection({ title, icon, stocks, iconBg, defaultExpanded = true }
 }
 
 export default function DashboardPage() {
+  // Check if coming soon page should be shown
+  // Set NEXT_PUBLIC_SHOW_COMING_SOON=true in .env.local to enable
+  const showComingSoon = process.env.NEXT_PUBLIC_SHOW_COMING_SOON === "true";
+
+  if (showComingSoon) {
+    return <ComingSoonPage />;
+  }
+
   const wallet = useWallet();
   const categories = useMemo(() => categorizeStocks(XSTOCKS), []);
 

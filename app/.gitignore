@@ -42,3 +42,7 @@ next-env.d.ts
 
 # cached data (NVDA volatility from Yahoo Finance)
 /data/
+
+# Markdown files (except README.md)
+*.md
+!README.md

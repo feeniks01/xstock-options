@@ -274,7 +274,13 @@ export default function ChainPage() {
 
             const tx = new Transaction();
 
-            const sellerQuoteAccountInfo = await connection.getAccountInfo(sellerQuoteAccount);
+            // Fetch both account infos in parallel to reduce latency
+            const buyerXstockAccount = getAta(stock.mint, wallet.publicKey);
+            const [sellerQuoteAccountInfo, buyerXstockAccountInfo] = await Promise.all([
+                connection.getAccountInfo(sellerQuoteAccount),
+                connection.getAccountInfo(buyerXstockAccount),
+            ]);
+
             if (!sellerQuoteAccountInfo) {
                 tx.add(
                     createAssociatedTokenAccountInstruction(
@@ -286,8 +292,6 @@ export default function ChainPage() {
                 );
             }
 
-            const buyerXstockAccount = getAta(stock.mint, wallet.publicKey);
-            const buyerXstockAccountInfo = await connection.getAccountInfo(buyerXstockAccount);
             if (!buyerXstockAccountInfo) {
                 tx.add(
                     createAssociatedTokenAccountInstruction(

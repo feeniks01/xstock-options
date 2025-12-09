@@ -26,6 +26,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Check if coming soon page should be shown
+  // When enabled, hide Navbar and LiveTicker for a clean landing page
+  const showComingSoon = process.env.NEXT_PUBLIC_SHOW_COMING_SOON === "true";
+
   return (
     <html lang="en">
       <body
@@ -33,8 +37,12 @@ export default function RootLayout({
       >
         <AppWalletProvider>
           <div className="min-h-screen flex flex-col">
-            <Navbar />
-            <LiveTicker />
+            {!showComingSoon && (
+              <>
+                <Navbar />
+                <LiveTicker />
+              </>
+            )}
             {children}
           </div>
           <ToastProvider />
