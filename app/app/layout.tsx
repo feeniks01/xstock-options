@@ -22,6 +22,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "xOptions — Decentralized Options for Tokenized Stocks",
   description: "Trade options on real-world stocks, fully on-chain. Fast, permissionless, cash-settled.",
+  icons: {
+    icon: "/OptionsFi_favicon.png",
+    shortcut: "/OptionsFi_favicon.png",
+    apple: "/OptionsFi_favicon.png",
+  },
 };
 
 export default async function RootLayout({
