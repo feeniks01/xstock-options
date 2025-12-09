@@ -3,6 +3,6 @@ solana-release/
 *.tar.bz2
 node_modules/
 
-# Markdown files (except README.md)
+# Markdown files (except root README.md)
 *.md
-!README.md
+!/README.md

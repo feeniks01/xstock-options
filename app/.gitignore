@@ -43,5 +43,5 @@ next-env.d.ts
 # cached data (NVDA volatility from Yahoo Finance)
 /data/
 
-# Markdown files (except README.md)
-*.md
+# Markdown files (handled by root .gitignore)
+# app/README.md will be ignored by root .gitignore pattern
