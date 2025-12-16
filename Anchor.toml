@@ -8,6 +8,7 @@ skip-lint = false
 
 [programs.localnet]
 xstock_options = "9VRMEYvEiKPeGz9N8wVQjvT5qpqcHqNqd31kSYZhop2s"
+oracle = "5MnuN6ahpRSp5F3R2uXvy9pSN4TQmhSydywQSoxszuZk"
 
 [registry]
 url = "https://api.apr.dev"
