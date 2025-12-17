@@ -72,25 +72,25 @@ The OptionsFi vault automates covered call writing for depositors.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         VAULT LIFECYCLE                          │
+│                         VAULT LIFECYCLE                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │   [User Deposits NVDAx]                                         │
 │          │                                                      │
 │          ▼                                                      │
 │   ┌──────────────┐                                              │
-│   │  Vault Pool  │ ◄── Holds all deposited xStock tokens       │
+│   │  Vault Pool  │ ◄── Holds all deposited xStock tokens        │
 │   └──────┬───────┘                                              │
 │          │                                                      │
 │          ▼                                                      │
 │   [Epoch Starts - Vault Writes Covered Calls]                   │
 │          │                                                      │
 │          ▼                                                      │
-│   ┌──────────────┐     RFQ Request      ┌──────────────────┐   │
-│   │   RFQ Router │ ──────────────────► │  Market Makers   │   │
-│   └──────┬───────┘                      └────────┬─────────┘   │
-│          │                                       │              │
-│          │◄───────── Premium Quotes ─────────────┘              │
+│   ┌──────────────┐     RFQ Request      ┌───────────────────┐   │
+│   │   RFQ Router │ ──────────────────►  │  Market Makers    │   │
+│   └──────┬───────┘                      └─────────┬─────────┘   │
+│          │                                        │             │
+│          │◄───────── Premium Quotes ──────────────┘             │
 │          │                                                      │
 │          ▼                                                      │
 │   [Best Quote Accepted - Premium Received]                      │
@@ -99,7 +99,7 @@ The OptionsFi vault automates covered call writing for depositors.
 │   [Epoch Ends - Options Settle]                                 │
 │          │                                                      │
 │          ├── If ITM: Vault pays difference                      │
-│          └── If OTM: Vault keeps all premium ✅                 │
+│          └── If OTM: Vault keeps all premium                    │
 │          │                                                      │
 │          ▼                                                      │
 │   [User Withdraws Principal + Yield]                            │
