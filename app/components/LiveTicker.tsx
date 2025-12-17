@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { XSTOCKS, MOCK_MINT } from "../utils/constants";
 import { MOCK_PRICES, getMockPrice, getMockChange } from "../utils/mockPrices";
 
@@ -24,6 +25,13 @@ function generateMockPrices(): TickerItem[] {
 }
 
 export default function LiveTicker() {
+  const pathname = usePathname();
+
+  // Don't render v1 ticker on v2 routes (v2 has its own layout)
+  if (pathname?.startsWith('/v2')) {
+    return null;
+  }
+
   const tickerItems = generateMockPrices();
 
   return (
@@ -47,11 +55,10 @@ export default function LiveTicker() {
                 ${item.price.toFixed(2)}
               </span>
               <span
-                className={`font-mono text-xs px-1.5 py-0.5 rounded ${
-                  item.change >= 0
+                className={`font-mono text-xs px-1.5 py-0.5 rounded ${item.change >= 0
                     ? "text-green-400 bg-green-500/10"
                     : "text-red-400 bg-red-500/10"
-                }`}
+                  }`}
               >
                 {item.change >= 0 ? "+" : ""}
                 {item.change.toFixed(2)}%

@@ -5,7 +5,12 @@ import { Toaster } from "react-hot-toast";
 export default function ToastProvider() {
     return (
         <Toaster
-            position="bottom-right"
+            position="top-center"
+            reverseOrder={false}
+            gutter={8}
+            containerStyle={{
+                top: 20,
+            }}
             toastOptions={{
                 duration: 4000,
                 style: {
@@ -27,6 +32,12 @@ export default function ToastProvider() {
                         secondary: "#1a1b20",
                     },
                     duration: 5000,
+                },
+                loading: {
+                    iconTheme: {
+                        primary: "#3b82f6",
+                        secondary: "#1a1b20",
+                    },
                 },
             }}
         />

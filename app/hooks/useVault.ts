@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { Wallet } from "@coral-xyz/anchor";
+import toast from "react-hot-toast";
 import {
     fetchVaultData,
     VaultData,
@@ -186,6 +187,8 @@ export function useVault(assetId: string): UseVaultReturn {
         const config = VAULTS[assetId.toLowerCase()];
         if (!config) throw new Error("Unknown vault");
 
+        const toastId = toast.loading("Preparing deposit...");
+
         try {
             setTxStatus("building");
             setTxError(null);
@@ -204,11 +207,17 @@ export function useVault(assetId: string): UseVaultReturn {
                 amount
             );
 
-            return await sendTransaction(tx);
+            toast.loading("Please sign the transaction...", { id: toastId });
+            const signature = await sendTransaction(tx);
+
+            toast.success("Deposit successful! ✓", { id: toastId, duration: 5000 });
+
+            return signature;
         } catch (err: any) {
             console.error("Deposit error:", err);
             setTxStatus("error");
             setTxError(err.message || "Deposit failed");
+            toast.error(err.message || "Deposit failed", { id: toastId });
             throw err;
         }
     };
@@ -221,6 +230,8 @@ export function useVault(assetId: string): UseVaultReturn {
 
         const config = VAULTS[assetId.toLowerCase()];
         if (!config) throw new Error("Unknown vault");
+
+        const toastId = toast.loading("Preparing withdrawal request...");
 
         try {
             setTxStatus("building");
@@ -240,11 +251,17 @@ export function useVault(assetId: string): UseVaultReturn {
                 shares
             );
 
-            return await sendTransaction(tx);
+            toast.loading("Please sign the transaction...", { id: toastId });
+            const signature = await sendTransaction(tx);
+
+            toast.success("Withdrawal requested! Will be processed at epoch end.", { id: toastId, duration: 5000 });
+
+            return signature;
         } catch (err: any) {
             console.error("Request withdrawal error:", err);
             setTxStatus("error");
             setTxError(err.message || "Request withdrawal failed");
+            toast.error(err.message || "Request withdrawal failed", { id: toastId });
             throw err;
         }
     };
@@ -257,6 +274,8 @@ export function useVault(assetId: string): UseVaultReturn {
 
         const config = VAULTS[assetId.toLowerCase()];
         if (!config) throw new Error("Unknown vault");
+
+        const toastId = toast.loading("Processing withdrawal...");
 
         try {
             setTxStatus("building");
@@ -275,11 +294,17 @@ export function useVault(assetId: string): UseVaultReturn {
                 config.assetId
             );
 
-            return await sendTransaction(tx);
+            toast.loading("Please sign the transaction...", { id: toastId });
+            const signature = await sendTransaction(tx);
+
+            toast.success("Withdrawal complete! Funds returned to wallet.", { id: toastId, duration: 5000 });
+
+            return signature;
         } catch (err: any) {
             console.error("Process withdrawal error:", err);
             setTxStatus("error");
             setTxError(err.message || "Process withdrawal failed");
+            toast.error(err.message || "Process withdrawal failed", { id: toastId });
             throw err;
         }
     };

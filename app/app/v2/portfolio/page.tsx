@@ -545,14 +545,30 @@ export default function PortfolioPage() {
             else if (a.type === "withdraw") { balance -= val; deposits -= val; }
         });
 
-        // Start point
-        let startValue = 0;
-        if (chartMode === "performance") {
-            startValue = deposits > 0 ? 100 : 0;
-        } else if (chartMode === "value") {
-            startValue = balance;
+        // Start point - if no pre-period events and first event is a deposit, skip the artificial 0 start
+        // This prevents the diagonal line from 0 to current value
+        const hasPrePeriodData = allActivities.some(a => a.timestamp.getTime() < startTime);
+        const firstEventInRange = allActivities.find(a => a.timestamp.getTime() >= startTime);
+
+        // Only add a start point if there's actual pre-period data
+        if (hasPrePeriodData) {
+            let startValue = 0;
+            if (chartMode === "performance") {
+                startValue = deposits > 0 ? 100 : 100; // Always start at 100% baseline
+            } else if (chartMode === "value") {
+                startValue = balance;
+            }
+            points.push({ value: startValue, date: new Date(startTime) });
+        } else if (firstEventInRange) {
+            // Start from a point just before the first event at 100% baseline (performance) or 0 (value)
+            const firstEventTime = firstEventInRange.timestamp.getTime();
+            const startPointTime = Math.max(startTime, firstEventTime - 60000); // 1 min before first event
+            if (chartMode === "performance") {
+                points.push({ value: 100, date: new Date(startPointTime) });
+            } else if (chartMode === "value") {
+                points.push({ value: 0, date: new Date(startPointTime) });
+            }
         }
-        points.push({ value: startValue, date: new Date(startTime) });
 
         // Events in range
         allActivities.filter(a => a.timestamp.getTime() >= startTime).forEach(a => {
@@ -691,7 +707,7 @@ export default function PortfolioPage() {
                             <button onClick={() => setChartExpanded(false)} className="ml-4 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400"><X className="w-5 h-5" /></button>
                         </div>
                     </div>
-                    <div className="flex-1 bg-gray-800/40 rounded-xl border border-gray-700/40 p-6 min-h-[400px]">
+                    <div className="flex-1 bg-gray-800/40 rounded-xl border border-gray-700/40 p-6 min-h-[400px] overflow-hidden">
                         {!hasActivity ? (
                             <div className="flex flex-col items-center justify-center h-full text-center">
                                 <Activity className="w-16 h-16 text-gray-600 mb-4" />
@@ -699,9 +715,11 @@ export default function PortfolioPage() {
                                 <p className="text-gray-500 text-sm">Deposit or withdraw to see your performance over time</p>
                             </div>
                         ) : (
-                            <ChartContent chartData={chartData} chartMin={chartMin} chartMax={chartMax} minTime={minTime} timeRange={timeRange}
-                                netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode} showBaseline={showBaseline}
-                                hoveredEvent={hoveredEvent} setHoveredEvent={setHoveredEvent} premiumBars={premiumBars} />
+                            <div className="h-full w-full overflow-hidden rounded-lg">
+                                <ChartContent chartData={chartData} chartMin={chartMin} chartMax={chartMax} minTime={minTime} timeRange={timeRange}
+                                    netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode} showBaseline={showBaseline}
+                                    hoveredEvent={hoveredEvent} setHoveredEvent={setHoveredEvent} premiumBars={premiumBars} />
+                            </div>
                         )}
                     </div>
                 </div>
