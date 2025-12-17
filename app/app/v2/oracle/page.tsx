@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
     RefreshCw, TrendingUp, TrendingDown, Clock, AlertTriangle, CheckCircle,
-    Copy, ExternalLink, ChevronDown, ChevronUp, Search, Info, X, Check
+    Copy, ExternalLink, Search, Info, X, Check, ChevronRight, Activity, Shield
 } from "lucide-react";
 
 // Pyth Feed IDs for xStocks
-const PYTH_FEEDS = {
+const PYTH_FEEDS: Record<string, string> = {
     NVDAx: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
     TSLAx: "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
     SPYx: "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
@@ -43,6 +44,9 @@ const REFRESH_INTERVALS = [
 type SortOption = "alphabetical" | "age-worst" | "confidence-worst";
 
 export default function OraclePage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+
     const [prices, setPrices] = useState<AssetPrice[]>(
         Object.entries(PYTH_FEEDS).map(([symbol, feedId]) => ({
             symbol,
@@ -61,16 +65,46 @@ export default function OraclePage() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [refreshInterval, setRefreshInterval] = useState(10000);
-    const [expandedCard, setExpandedCard] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [sortBy, setSortBy] = useState<SortOption>("alphabetical");
     const [showHealthyOnly, setShowHealthyOnly] = useState(false);
     const [showAbout, setShowAbout] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
+    // Selected feed from URL or state
+    const selectedFeed = searchParams.get("feed") || null;
+    const setSelectedFeed = useCallback((symbol: string | null) => {
+        if (symbol) {
+            router.push(`?feed=${symbol}`, { scroll: false });
+        } else {
+            router.push("/v2/oracle", { scroll: false });
+        }
+    }, [router]);
+
+    // Keyboard navigation
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!["ArrowUp", "ArrowDown"].includes(e.key)) return;
+            e.preventDefault();
+
+            const symbols = filteredPrices.map(p => p.symbol);
+            const currentIndex = symbols.indexOf(selectedFeed || "");
+
+            if (e.key === "ArrowDown") {
+                const nextIndex = currentIndex < symbols.length - 1 ? currentIndex + 1 : 0;
+                setSelectedFeed(symbols[nextIndex]);
+            } else if (e.key === "ArrowUp") {
+                const prevIndex = currentIndex > 0 ? currentIndex - 1 : symbols.length - 1;
+                setSelectedFeed(symbols[prevIndex]);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [selectedFeed, setSelectedFeed]);
+
     const fetchPrices = async () => {
         setIsRefreshing(true);
-
         const feedIds = Object.values(PYTH_FEEDS);
         const idsParam = feedIds.map(id => `ids[]=${id}`).join("&");
 
@@ -94,13 +128,9 @@ export default function OraclePage() {
                         const publishTime = feedData.price.publish_time;
                         const ageSeconds = Math.floor(now - publishTime);
                         const confidencePercent = price > 0 ? (conf / price) * 100 : null;
-
-                        // Calculate pseudo 24h change (comparing current to EMA)
                         const change = ((price - emaPrice) / emaPrice) * 100;
-
                         const isStale = ageSeconds > STALE_THRESHOLD_SECONDS;
                         const isWideConf = confidencePercent !== null && confidencePercent > CONFIDENCE_THRESHOLD_PERCENT;
-                        const status: "ok" | "stale" = isStale || isWideConf ? "stale" : "ok";
 
                         return {
                             symbol,
@@ -111,22 +141,16 @@ export default function OraclePage() {
                             change24h: change,
                             lastUpdated: publishTime,
                             ageSeconds,
-                            status,
+                            status: (isStale || isWideConf ? "stale" : "ok") as "ok" | "stale",
                             emaPrice,
                         };
                     }
 
                     return {
-                        symbol,
-                        feedId,
-                        price: null,
-                        confidence: null,
-                        confidencePercent: null,
-                        change24h: null,
-                        lastUpdated: null,
-                        ageSeconds: null,
-                        status: "error" as const,
-                        emaPrice: null,
+                        symbol, feedId,
+                        price: null, confidence: null, confidencePercent: null,
+                        change24h: null, lastUpdated: null, ageSeconds: null,
+                        status: "error" as const, emaPrice: null,
                     };
                 });
 
@@ -143,7 +167,6 @@ export default function OraclePage() {
 
     useEffect(() => {
         fetchPrices();
-
         if (autoRefresh) {
             const interval = setInterval(fetchPrices, refreshInterval);
             return () => clearInterval(interval);
@@ -159,11 +182,7 @@ export default function OraclePage() {
                     const ageSeconds = Math.floor(now - p.lastUpdated);
                     const isStale = ageSeconds > STALE_THRESHOLD_SECONDS;
                     const isWideConf = p.confidencePercent !== null && p.confidencePercent > CONFIDENCE_THRESHOLD_PERCENT;
-                    return {
-                        ...p,
-                        ageSeconds,
-                        status: isStale || isWideConf ? "stale" : "ok"
-                    };
+                    return { ...p, ageSeconds, status: isStale || isWideConf ? "stale" : "ok" };
                 }
                 return p;
             }));
@@ -176,20 +195,16 @@ export default function OraclePage() {
         if (seconds < 60) return { text: `${seconds}s`, label: "Fresh" };
         if (seconds < 3600) {
             const mins = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            return { text: `${mins}m ${secs}s`, label: seconds > STALE_THRESHOLD_SECONDS ? "Stale" : "Fresh" };
+            return { text: `${mins}m ${seconds % 60}s`, label: seconds > STALE_THRESHOLD_SECONDS ? "Stale" : "Fresh" };
         }
-        const hours = Math.floor(seconds / 3600);
-        return { text: `${hours}h+`, label: "Stale" };
+        return { text: `${Math.floor(seconds / 3600)}h+`, label: "Stale" };
     };
 
     const formatPrice = (price: number | null) => {
         if (price === null) return "—";
         return new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: "USD",
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+            style: "currency", currency: "USD",
+            minimumFractionDigits: 2, maximumFractionDigits: 2,
         }).format(price);
     };
 
@@ -202,35 +217,21 @@ export default function OraclePage() {
     // Filtered and sorted prices
     const filteredPrices = useMemo(() => {
         let result = [...prices];
-
-        // Search filter
         if (searchQuery) {
-            result = result.filter(p =>
-                p.symbol.toLowerCase().includes(searchQuery.toLowerCase())
-            );
+            result = result.filter(p => p.symbol.toLowerCase().includes(searchQuery.toLowerCase()));
         }
-
-        // Healthy filter
         if (showHealthyOnly) {
             result = result.filter(p => p.status === "ok");
         }
-
-        // Sort
         switch (sortBy) {
-            case "age-worst":
-                result.sort((a, b) => (b.ageSeconds || 0) - (a.ageSeconds || 0));
-                break;
-            case "confidence-worst":
-                result.sort((a, b) => (b.confidencePercent || 0) - (a.confidencePercent || 0));
-                break;
-            case "alphabetical":
-            default:
-                result.sort((a, b) => a.symbol.localeCompare(b.symbol));
+            case "age-worst": result.sort((a, b) => (b.ageSeconds || 0) - (a.ageSeconds || 0)); break;
+            case "confidence-worst": result.sort((a, b) => (b.confidencePercent || 0) - (a.confidencePercent || 0)); break;
+            default: result.sort((a, b) => a.symbol.localeCompare(b.symbol));
         }
-
         return result;
     }, [prices, searchQuery, sortBy, showHealthyOnly]);
 
+    const selectedAsset = prices.find(p => p.symbol === selectedFeed) || null;
     const healthyCount = prices.filter(p => p.status === "ok").length;
     const totalCount = prices.length;
     const worstAge = Math.max(...prices.map(p => p.ageSeconds || 0));
@@ -242,16 +243,11 @@ export default function OraclePage() {
                 <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                         <h1 className="text-2xl font-bold text-white">Oracle Price Feeds</h1>
-                        <button
-                            onClick={() => setShowAbout(true)}
-                            className="text-gray-500 hover:text-gray-300 transition-colors"
-                        >
+                        <button onClick={() => setShowAbout(true)} className="text-gray-500 hover:text-gray-300">
                             <Info className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
-
-                {/* Health line - quiet, useful */}
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                     <span className={`w-1.5 h-1.5 rounded-full ${healthyCount === totalCount ? "bg-green-500" : "bg-yellow-500"}`} />
                     <span>Pyth</span>
@@ -266,7 +262,6 @@ export default function OraclePage() {
 
             {/* Controls Row */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
-                {/* Search */}
                 <div className="relative flex-1 max-w-xs">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input
@@ -277,205 +272,234 @@ export default function OraclePage() {
                         className="w-full pl-9 pr-3 py-1.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-gray-600"
                     />
                 </div>
-
                 <div className="flex items-center gap-3 flex-wrap">
-                    {/* Sort dropdown */}
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as SortOption)}
-                        className="px-3 py-1.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm text-gray-300 focus:outline-none"
-                    >
-                        <option value="alphabetical">Sort: A-Z</option>
-                        <option value="age-worst">Sort: Age (worst)</option>
-                        <option value="confidence-worst">Sort: Conf (worst)</option>
+                    <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}
+                        className="px-3 py-1.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm text-gray-300">
+                        <option value="alphabetical">A-Z</option>
+                        <option value="age-worst">Age ↓</option>
+                        <option value="confidence-worst">Conf ↓</option>
                     </select>
-
-                    {/* Filter toggle */}
-                    <button
-                        onClick={() => setShowHealthyOnly(!showHealthyOnly)}
+                    <button onClick={() => setShowHealthyOnly(!showHealthyOnly)}
                         className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${showHealthyOnly
-                                ? "bg-green-500/20 border-green-500/50 text-green-400"
-                                : "bg-gray-800/50 border-gray-700/50 text-gray-400"
-                            }`}
-                    >
-                        Healthy only
+                            ? "bg-green-500/20 border-green-500/50 text-green-400"
+                            : "bg-gray-800/50 border-gray-700/50 text-gray-400"}`}>
+                        Healthy
                     </button>
-
-                    {/* Auto-refresh with interval */}
                     <div className="flex items-center gap-2">
                         <label className="flex items-center gap-2 text-sm text-gray-400">
-                            <input
-                                type="checkbox"
-                                checked={autoRefresh}
-                                onChange={(e) => setAutoRefresh(e.target.checked)}
-                                className="w-3.5 h-3.5 rounded bg-gray-700 border-gray-600"
-                            />
+                            <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded" />
                             Auto
                         </label>
-                        <select
-                            value={refreshInterval}
-                            onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                            disabled={!autoRefresh}
-                            className="px-2 py-1 bg-gray-800/50 border border-gray-700/50 rounded text-xs text-gray-400 focus:outline-none disabled:opacity-50"
-                        >
-                            {REFRESH_INTERVALS.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
+                        <select value={refreshInterval} onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                            disabled={!autoRefresh} className="px-2 py-1 bg-gray-800/50 border border-gray-700/50 rounded text-xs text-gray-400 disabled:opacity-50">
+                            {REFRESH_INTERVALS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                         </select>
                     </div>
-
-                    {/* Manual refresh button */}
-                    <button
-                        onClick={fetchPrices}
-                        disabled={isRefreshing}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-white transition-colors disabled:opacity-50"
-                    >
+                    <button onClick={fetchPrices} disabled={isRefreshing}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-white disabled:opacity-50">
                         <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
                         Refresh
                     </button>
                 </div>
             </div>
 
-            {/* Price Cards - Compact Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filteredPrices.map((asset) => {
-                    const isExpanded = expandedCard === asset.symbol;
-                    const ageInfo = formatAge(asset.ageSeconds);
-                    const isStale = asset.ageSeconds !== null && asset.ageSeconds > STALE_THRESHOLD_SECONDS;
-                    const isWideConf = asset.confidencePercent !== null && asset.confidencePercent > CONFIDENCE_THRESHOLD_PERCENT;
+            {/* Main Content: Cards Grid + Details Panel */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ minHeight: "400px" }}>
+                {/* Left: Compact Oracle Cards (2/3 or full if no selection) */}
+                <div className={`${selectedAsset ? "lg:col-span-2" : "lg:col-span-3"}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {filteredPrices.map((asset) => {
+                            const ageInfo = formatAge(asset.ageSeconds);
+                            const isStale = asset.ageSeconds !== null && asset.ageSeconds > STALE_THRESHOLD_SECONDS;
+                            const isWideConf = asset.confidencePercent !== null && asset.confidencePercent > CONFIDENCE_THRESHOLD_PERCENT;
+                            const isSelected = selectedFeed === asset.symbol;
 
-                    return (
-                        <div
-                            key={asset.symbol}
-                            className={`bg-gray-800/40 rounded-xl border transition-all ${isExpanded ? "border-purple-500/50" : "border-gray-700/40 hover:border-gray-600/50"
-                                }`}
-                        >
-                            {/* Main card - clickable */}
-                            <button
-                                onClick={() => setExpandedCard(isExpanded ? null : asset.symbol)}
-                                className="w-full p-4 text-left"
-                            >
-                                {/* Row 1: Symbol + Price */}
-                                <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-lg font-bold text-white">{asset.symbol}</h3>
-                                    <div className="text-xl font-bold text-white">
+                            return (
+                                <button
+                                    key={asset.symbol}
+                                    onClick={() => setSelectedFeed(isSelected ? null : asset.symbol)}
+                                    className={`relative bg-gray-800/40 rounded-xl border p-4 text-left transition-all hover:bg-gray-800/60 ${isSelected
+                                            ? "border-purple-500/60 ring-1 ring-purple-500/30"
+                                            : "border-gray-700/40 hover:border-gray-600/60"
+                                        }`}
+                                >
+                                    {/* Selected indicator */}
+                                    {isSelected && (
+                                        <div className="absolute left-0 top-3 bottom-3 w-1 bg-purple-500 rounded-r" />
+                                    )}
+
+                                    {/* Ticker + Health Badge */}
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-lg font-bold text-white">{asset.symbol}</h3>
+                                        <span className={`w-2 h-2 rounded-full ${asset.status === "ok" ? "bg-green-500"
+                                                : asset.status === "stale" ? "bg-yellow-500"
+                                                    : "bg-red-500"
+                                            }`} />
+                                    </div>
+
+                                    {/* Price */}
+                                    <div className="text-xl font-bold text-white mb-2">
                                         {formatPrice(asset.price)}
                                     </div>
-                                </div>
 
-                                {/* Row 2: Age + Confidence */}
-                                <div className="flex items-center justify-between text-sm">
-                                    {/* Age */}
-                                    <div className={`flex items-center gap-1 ${isStale ? "text-yellow-400" : "text-gray-500"}`}>
-                                        <Clock className="w-3.5 h-3.5" />
-                                        <span>{ageInfo.label}</span>
-                                        <span className="text-gray-600">•</span>
-                                        <span>{ageInfo.text} ago</span>
+                                    {/* Confidence + Freshness */}
+                                    <div className="flex items-center justify-between text-xs">
+                                        <div className={`flex items-center gap-1 ${isStale ? "text-yellow-400" : "text-gray-500"}`}>
+                                            <Clock className="w-3 h-3" />
+                                            <span>{ageInfo.text}</span>
+                                        </div>
+                                        <div className={isWideConf ? "text-yellow-400" : "text-gray-500"}>
+                                            ±{asset.confidencePercent?.toFixed(3) || "—"}%
+                                        </div>
                                     </div>
 
-                                    {/* Confidence */}
-                                    <div className={`text-right ${isWideConf ? "text-yellow-400" : "text-gray-500"}`}>
-                                        <span>±{asset.confidence?.toFixed(2) || "—"}</span>
-                                        {asset.confidencePercent !== null && (
-                                            <span className="text-gray-600 ml-1">({asset.confidencePercent.toFixed(3)}%)</span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Row 3: vs EMA (subtle) + expand indicator */}
-                                <div className="flex items-center justify-between mt-2 text-xs">
+                                    {/* EMA comparison */}
                                     {asset.change24h !== null && (
-                                        <div className={`flex items-center gap-1 ${asset.change24h >= 0 ? "text-green-400/70" : "text-red-400/70"}`}>
-                                            {asset.change24h >= 0 ? (
-                                                <TrendingUp className="w-3 h-3" />
-                                            ) : (
-                                                <TrendingDown className="w-3 h-3" />
-                                            )}
+                                        <div className={`flex items-center gap-1 mt-2 text-[10px] ${asset.change24h >= 0 ? "text-green-400/60" : "text-red-400/60"
+                                            }`}>
+                                            {asset.change24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                             <span>{asset.change24h >= 0 ? "+" : ""}{asset.change24h.toFixed(2)}% vs EMA</span>
                                         </div>
                                     )}
-                                    <div className="text-gray-600">
-                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Right: Details Panel (1/3) */}
+                {selectedAsset ? (
+                    <div className="lg:col-span-1">
+                        <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 p-5 sticky top-20">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-3 h-3 rounded-full ${selectedAsset.status === "ok" ? "bg-green-500"
+                                            : selectedAsset.status === "stale" ? "bg-yellow-500"
+                                                : "bg-red-500"
+                                        }`} />
+                                    <h2 className="text-xl font-bold text-white">{selectedAsset.symbol}</h2>
+                                </div>
+                                <button onClick={() => setSelectedFeed(null)} className="text-gray-500 hover:text-gray-300">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Price */}
+                            <div className="mb-6">
+                                <p className="text-xs text-gray-500 mb-1">Current Price</p>
+                                <p className="text-3xl font-bold text-white">{formatPrice(selectedAsset.price)}</p>
+                                {selectedAsset.change24h !== null && (
+                                    <p className={`flex items-center gap-1 text-sm mt-1 ${selectedAsset.change24h >= 0 ? "text-green-400" : "text-red-400"
+                                        }`}>
+                                        {selectedAsset.change24h >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                        {selectedAsset.change24h >= 0 ? "+" : ""}{selectedAsset.change24h.toFixed(2)}% vs EMA
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Feed ID */}
+                            <div className="mb-4">
+                                <p className="text-xs text-gray-500 mb-1.5">Feed ID</p>
+                                <div className="flex items-center gap-2">
+                                    <code className="text-[10px] text-gray-400 break-all flex-1 bg-gray-900/50 px-2 py-1.5 rounded font-mono">
+                                        {selectedAsset.feedId}
+                                    </code>
+                                    <button onClick={() => copyToClipboard(selectedAsset.feedId, selectedAsset.symbol)}
+                                        className="p-1.5 hover:bg-gray-700 rounded transition-colors">
+                                        {copiedId === selectedAsset.symbol
+                                            ? <Check className="w-4 h-4 text-green-400" />
+                                            : <Copy className="w-4 h-4 text-gray-500" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Health Rules */}
+                            <div className="mb-4">
+                                <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                                    <Shield className="w-3 h-3" /> Health Rules
+                                </p>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className={`px-3 py-2 rounded-lg ${selectedAsset.ageSeconds !== null && selectedAsset.ageSeconds > STALE_THRESHOLD_SECONDS
+                                            ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                                            : "bg-green-500/10 text-green-400 border border-green-500/20"
+                                        }`}>
+                                        <p className="font-medium">Age</p>
+                                        <p className="text-[10px] opacity-70">{formatAge(selectedAsset.ageSeconds).text} / &lt;{STALE_THRESHOLD_SECONDS / 60}m</p>
+                                    </div>
+                                    <div className={`px-3 py-2 rounded-lg ${selectedAsset.confidencePercent !== null && selectedAsset.confidencePercent > CONFIDENCE_THRESHOLD_PERCENT
+                                            ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                                            : "bg-green-500/10 text-green-400 border border-green-500/20"
+                                        }`}>
+                                        <p className="font-medium">Confidence</p>
+                                        <p className="text-[10px] opacity-70">±{selectedAsset.confidencePercent?.toFixed(3) || "—"}% / &lt;{CONFIDENCE_THRESHOLD_PERCENT}%</p>
                                     </div>
                                 </div>
-                            </button>
+                            </div>
 
-                            {/* Expanded details */}
-                            {isExpanded && (
-                                <div className="px-4 pb-4 pt-0 border-t border-gray-700/50 space-y-3">
-                                    {/* Feed ID with copy */}
-                                    <div className="mt-3">
-                                        <p className="text-xs text-gray-500 mb-1">Feed ID</p>
-                                        <div className="flex items-center gap-2">
-                                            <code className="text-xs text-gray-400 break-all flex-1 bg-gray-900/50 px-2 py-1 rounded">
-                                                {asset.feedId}
-                                            </code>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    copyToClipboard(asset.feedId, asset.symbol);
-                                                }}
-                                                className="p-1 hover:bg-gray-700 rounded transition-colors"
-                                            >
-                                                {copiedId === asset.symbol ? (
-                                                    <Check className="w-4 h-4 text-green-400" />
-                                                ) : (
-                                                    <Copy className="w-4 h-4 text-gray-500" />
-                                                )}
-                                            </button>
+                            {/* EMA Comparison */}
+                            <div className="mb-4">
+                                <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                                    <Activity className="w-3 h-3" /> EMA Comparison
+                                </p>
+                                <div className="bg-gray-900/50 rounded-lg p-3">
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="text-gray-400">EMA Price</span>
+                                        <span className="text-white">{formatPrice(selectedAsset.emaPrice)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-400">Spot Price</span>
+                                        <span className="text-white">{formatPrice(selectedAsset.price)}</span>
+                                    </div>
+                                    {selectedAsset.change24h !== null && (
+                                        <div className="mt-2 pt-2 border-t border-gray-700/50 flex justify-between text-sm">
+                                            <span className="text-gray-400">Deviation</span>
+                                            <span className={selectedAsset.change24h >= 0 ? "text-green-400" : "text-red-400"}>
+                                                {selectedAsset.change24h >= 0 ? "+" : ""}{selectedAsset.change24h.toFixed(3)}%
+                                            </span>
                                         </div>
-                                    </div>
-
-                                    {/* Health rules */}
-                                    <div>
-                                        <p className="text-xs text-gray-500 mb-1">Health Rules</p>
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                            <div className={`px-2 py-1 rounded ${isStale ? "bg-yellow-500/10 text-yellow-400" : "bg-green-500/10 text-green-400"}`}>
-                                                Age: {isStale ? "STALE" : "OK"} (&lt;{STALE_THRESHOLD_SECONDS / 60}m)
-                                            </div>
-                                            <div className={`px-2 py-1 rounded ${isWideConf ? "bg-yellow-500/10 text-yellow-400" : "bg-green-500/10 text-green-400"}`}>
-                                                Conf: {isWideConf ? "WIDE" : "OK"} (&lt;{CONFIDENCE_THRESHOLD_PERCENT}%)
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Links */}
-                                    <div className="flex items-center gap-3">
-                                        <a
-                                            href={`https://pyth.network/price-feeds/equity-us-${asset.symbol.toLowerCase().replace('x', '')}-usd`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <ExternalLink className="w-3 h-3" />
-                                            View on Pyth
-                                        </a>
-                                        <a
-                                            href={`https://explorer.solana.com/address/${asset.feedId}?cluster=mainnet`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <ExternalLink className="w-3 h-3" />
-                                            Explorer
-                                        </a>
-                                    </div>
+                                    )}
                                 </div>
-                            )}
+                            </div>
+
+                            {/* External Links */}
+                            <div className="flex flex-col gap-2">
+                                <a href={`https://pyth.network/price-feeds/equity-us-${selectedAsset.symbol.toLowerCase().replace('x', '')}-usd`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center justify-between px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg text-sm text-purple-400 transition-colors">
+                                    <span>View on Pyth Network</span>
+                                    <ExternalLink className="w-4 h-4" />
+                                </a>
+                                <a href={`https://explorer.solana.com/address/${selectedAsset.feedId}?cluster=mainnet`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center justify-between px-3 py-2 bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/30 rounded-lg text-sm text-gray-400 transition-colors">
+                                    <span>Solana Explorer</span>
+                                    <ExternalLink className="w-4 h-4" />
+                                </a>
+                            </div>
+
+                            {/* Keyboard hint */}
+                            <p className="text-[10px] text-gray-600 mt-4 text-center">
+                                Use ↑↓ arrows to navigate feeds
+                            </p>
                         </div>
-                    );
-                })}
+                    </div>
+                ) : (
+                    <div className="lg:col-span-1 hidden lg:block">
+                        <div className="bg-gray-800/20 rounded-xl border border-dashed border-gray-700/40 p-8 h-full flex flex-col items-center justify-center text-center">
+                            <Activity className="w-10 h-10 text-gray-600 mb-3" />
+                            <p className="text-gray-500 text-sm mb-1">Select a feed</p>
+                            <p className="text-gray-600 text-xs">Click any oracle card to view details</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* About Modal */}
             {showAbout && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowAbout(false)}>
-                    <div
-                        className="bg-gray-800 rounded-xl border border-gray-700 max-w-lg w-full p-6"
-                        onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="bg-gray-800 rounded-xl border border-gray-700 max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold text-white">About Pyth Price Feeds</h3>
                             <button onClick={() => setShowAbout(false)} className="text-gray-400 hover:text-white">
@@ -483,27 +507,13 @@ export default function OraclePage() {
                             </button>
                         </div>
                         <div className="text-gray-400 text-sm space-y-3">
-                            <p>
-                                Prices are fetched from Pyth Network&apos;s Hermes API, providing real-time price data
-                                for xStock tokenized assets.
-                            </p>
+                            <p>Prices are fetched from Pyth Network&apos;s Hermes API, providing real-time price data for xStock tokenized assets.</p>
                             <div className="bg-gray-900/50 rounded-lg p-3 space-y-2">
-                                <p>
-                                    <strong className="text-white">Confidence Interval:</strong> Represents the uncertainty
-                                    in the price measurement. Lower values indicate more reliable prices.
-                                </p>
-                                <p>
-                                    <strong className="text-white">Stale Threshold:</strong> Prices older than {STALE_THRESHOLD_SECONDS / 60} minutes
-                                    are marked as &quot;stale&quot; and should be used with caution.
-                                </p>
-                                <p>
-                                    <strong className="text-white">Confidence Threshold:</strong> Confidence intervals wider than {CONFIDENCE_THRESHOLD_PERCENT}%
-                                    of price trigger a warning.
-                                </p>
+                                <p><strong className="text-white">Confidence Interval:</strong> Represents the uncertainty in the price measurement.</p>
+                                <p><strong className="text-white">Stale Threshold:</strong> Prices older than {STALE_THRESHOLD_SECONDS / 60} minutes are marked as stale.</p>
+                                <p><strong className="text-white">Confidence Threshold:</strong> Confidence intervals wider than {CONFIDENCE_THRESHOLD_PERCENT}% trigger a warning.</p>
                             </div>
-                            <p className="text-xs text-gray-500">
-                                Data refreshes automatically. Click a card to see detailed feed information.
-                            </p>
+                            <p className="text-xs text-gray-500">Data refreshes automatically. Click a card to see detailed feed information.</p>
                         </div>
                     </div>
                 </div>

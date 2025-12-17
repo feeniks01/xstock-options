@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Loader2, TrendingUp, Wallet, Clock } from "lucide-react";
+import { Loader2, TrendingUp, Wallet, Clock, Vault } from "lucide-react";
 import { useAllVaults } from "../../hooks/useVault";
 
 // Metadata for display (price is approximate for USD TVL calculation)
@@ -83,7 +83,7 @@ export default function V2EarnDashboard() {
                         </div>
                         <div>
                             <p className="text-sm text-muted-foreground">Vaults</p>
-                            <p className="text-2xl font-bold text-foreground">{liveVaultCount}/{vaultList.length} Live</p>
+                            <p className="text-2xl font-bold text-foreground">{liveVaultCount}</p>
                         </div>
                     </div>
 
@@ -126,7 +126,7 @@ export default function V2EarnDashboard() {
             <section id="vaults" className="space-y-4">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5" />
+                        <Vault className="w-5 h-5" />
                         All Vaults
                     </h2>
                     <span className="text-sm text-muted-foreground flex items-center gap-2">

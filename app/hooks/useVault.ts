@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { Wallet } from "@coral-xyz/anchor";
@@ -63,10 +63,16 @@ export function useVault(assetId: string): UseVaultReturn {
     const [txError, setTxError] = useState<string | null>(null);
     const [txSignature, setTxSignature] = useState<string | null>(null);
 
+    const isInitialLoad = useRef(true);
+    const lastVaultHash = useRef<string>("");
+
     // Fetch vault and user data
     const fetchData = useCallback(async () => {
         try {
-            setLoading(true);
+            // Only show loading on initial load
+            if (isInitialLoad.current) {
+                setLoading(true);
+            }
             setError(null);
 
             // Get normalized asset ID
@@ -76,14 +82,22 @@ export function useVault(assetId: string): UseVaultReturn {
 
             const config = VAULTS[assetId.toLowerCase()];
             if (!config) {
-                // Vault config exists but vault may not be initialized on-chain yet
                 setVaultData(null);
-                setLoading(false);
+                if (isInitialLoad.current) {
+                    isInitialLoad.current = false;
+                    setLoading(false);
+                }
                 return;
             }
 
             const data = await fetchVaultData(connection, config.assetId);
-            setVaultData(data);
+
+            // Only update if data changed
+            const newHash = JSON.stringify(data);
+            if (newHash !== lastVaultHash.current) {
+                lastVaultHash.current = newHash;
+                setVaultData(data);
+            }
 
             // Fetch user balances if wallet connected
             if (wallet.publicKey) {
@@ -91,8 +105,10 @@ export function useVault(assetId: string): UseVaultReturn {
                     getUserShareBalance(connection, wallet.publicKey, config.assetId),
                     getUserUnderlyingBalance(connection, wallet.publicKey, config.assetId),
                 ]);
-                setUserShareBalance(shares);
-                setUserUnderlyingBalance(underlying);
+
+                // Only update if changed
+                if (shares !== userShareBalance) setUserShareBalance(shares);
+                if (underlying !== userUnderlyingBalance) setUserUnderlyingBalance(underlying);
 
                 // Check for pending withdrawal
                 if (wallet.signTransaction) {
@@ -110,7 +126,10 @@ export function useVault(assetId: string): UseVaultReturn {
             setError(err.message || "Failed to fetch vault data");
             setVaultData(null);
         } finally {
-            setLoading(false);
+            if (isInitialLoad.current) {
+                isInitialLoad.current = false;
+                setLoading(false);
+            }
         }
     }, [assetId, connection, wallet.publicKey, wallet.signTransaction, wallet.signAllTransactions]);
 
@@ -282,46 +301,60 @@ export function useVault(assetId: string): UseVaultReturn {
 
 /**
  * Hook to fetch all vaults' data (read-only)
+ * Prevents visual re-renders by only updating when data changes
  */
 export function useAllVaults() {
     const { connection } = useConnection();
     const [vaults, setVaults] = useState<Record<string, VaultData | null>>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const isInitialLoad = useRef(true);
+    const lastDataHash = useRef<string>("");
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
+    const fetchData = useCallback(async () => {
+        try {
+            // Only show loading on initial load, not refreshes
+            if (isInitialLoad.current) {
                 setLoading(true);
-                setError(null);
+            }
+            setError(null);
 
-                const results: Record<string, VaultData | null> = {};
+            const results: Record<string, VaultData | null> = {};
 
-                for (const [key, config] of Object.entries(VAULTS)) {
-                    try {
-                        const data = await fetchVaultData(connection, config.assetId);
-                        results[key] = data;
-                    } catch (err) {
-                        console.error(`Error fetching ${key}:`, err);
-                        results[key] = null;
-                    }
+            for (const [key, config] of Object.entries(VAULTS)) {
+                try {
+                    const data = await fetchVaultData(connection, config.assetId);
+                    results[key] = data;
+                } catch (err) {
+                    console.error(`Error fetching ${key}:`, err);
+                    results[key] = null;
                 }
+            }
 
+            // Only update state if data actually changed (prevents visual flicker)
+            const newHash = JSON.stringify(results);
+            if (newHash !== lastDataHash.current) {
+                lastDataHash.current = newHash;
                 setVaults(results);
-            } catch (err: any) {
-                console.error("Error fetching vaults:", err);
-                setError(err.message || "Failed to fetch vaults");
-            } finally {
+            }
+        } catch (err: any) {
+            console.error("Error fetching vaults:", err);
+            setError(err.message || "Failed to fetch vaults");
+        } finally {
+            if (isInitialLoad.current) {
+                isInitialLoad.current = false;
                 setLoading(false);
             }
-        };
+        }
+    }, [connection]);
 
+    useEffect(() => {
         fetchData();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
-    }, [connection]);
+    }, [fetchData]);
 
-    return { vaults, loading, error };
+    return { vaults, loading, error, refresh: fetchData };
 }
 
 /**
