@@ -217,11 +217,31 @@ export default function VaultDetailPage() {
     const utilization = vaultData ?
         (Number(vaultData.totalShares) > 0 ? (vaultData.utilizationCapBps / 100) : 0) : 0;
 
-    // Epoch timing (mock for now - 7 day epochs)
-    const epochDurationHours = 168; // 7 days
-    const epochStartTime = Math.floor(Date.now() / 1000) - 3600; // Mock: epoch started 1 hour ago
-    const epochEndTime = epochStartTime + (epochDurationHours * 3600);
-    const timeUntilEpochEnd = Math.max(0, epochEndTime - Math.floor(Date.now() / 1000));
+    // Epoch timing - calculate based on a fixed weekly schedule
+    // Epochs run Sunday 00:00 UTC to Saturday 23:59 UTC
+    const getEpochEndTime = () => {
+        const now = new Date();
+        // Find next Saturday 23:59 UTC
+        const daysUntilSaturday = (6 - now.getUTCDay() + 7) % 7 || 7;
+        const nextSaturday = new Date(now);
+        nextSaturday.setUTCDate(now.getUTCDate() + daysUntilSaturday);
+        nextSaturday.setUTCHours(23, 59, 59, 999);
+        return Math.floor(nextSaturday.getTime() / 1000);
+    };
+
+    const [timeUntilEpochEnd, setTimeUntilEpochEnd] = useState(0);
+
+    useEffect(() => {
+        const updateTime = () => {
+            const epochEnd = getEpochEndTime();
+            const remaining = Math.max(0, epochEnd - Math.floor(Date.now() / 1000));
+            setTimeUntilEpochEnd(remaining);
+        };
+        updateTime();
+        const interval = setInterval(updateTime, 60000); // Update every minute
+        return () => clearInterval(interval);
+    }, []);
+
     const hoursUntilEnd = Math.floor(timeUntilEpochEnd / 3600);
     const daysUntilEnd = Math.floor(hoursUntilEnd / 24);
     const remainingHours = hoursUntilEnd % 24;

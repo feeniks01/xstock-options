@@ -545,11 +545,13 @@ cd scripts && npx ts-node init-vault.ts
 - [x] RFQ program structure
 - [x] V2 UI with Earn dashboard
 - [x] Vault detail pages with live pricing
-- [x] Oracle monitoring page
+- [x] Oracle monitoring page (enhanced with search/sort/expand)
 - [x] UI scale system
 - [x] Collapsible sidebar
 - [x] Devnet deployment (oracle, vault, rfq)
 - [x] NVDAx vault initialization
+- [x] Portfolio page with position breakdown
+- [x] V2 Documentation page
 
 ### In Progress 🚧
 
@@ -562,7 +564,6 @@ cd scripts && npx ts-node init-vault.ts
 
 - [ ] Option settlement with Pyth prices
 - [ ] Historical yield tracking
-- [ ] Portfolio page with position breakdown
 - [ ] Mainnet deployment
 - [ ] Audit
 
