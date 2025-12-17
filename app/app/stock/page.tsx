@@ -42,12 +42,12 @@ function Tooltip({ children, text }: { children: React.ReactNode; text: string }
 function RangeBar({ low, high, current }: { low: number; high: number; current: number }) {
     const range = high - low || 1;
     const position = Math.min(100, Math.max(0, ((current - low) / range) * 100));
-    
+
     return (
         <div className="space-y-1">
             <div className="relative h-1.5 bg-[#27272a] rounded-full overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-red-500/30 via-yellow-500/30 to-green-500/30" />
-                <div 
+                <div
                     className="absolute top-1/2 -translate-y-1/2 w-2 h-2 bg-orange-500 rounded-full border border-white shadow transition-all duration-300"
                     style={{ left: `calc(${position}% - 4px)` }}
                 />
@@ -98,7 +98,7 @@ export default function StockPage() {
     const [activeTab, setActiveTab] = useState<'active' | 'history' | 'about'>('active');
     const [isProcessing, setIsProcessing] = useState(false);
     const [isLoadingPositions, setIsLoadingPositions] = useState(true);
-    
+
     // Polling interval (in milliseconds) - default 1 minute to reduce API load
     const [pollInterval, setPollInterval] = useState<number>(60000);
     const POLL_OPTIONS = [
@@ -141,7 +141,7 @@ export default function StockPage() {
             fetchPrice();
             fetchUserPositions();
             fetchUnderlyingBalance();
-            
+
             const interval = setInterval(() => {
                 fetchPrice();
                 fetchUnderlyingBalance();
@@ -188,8 +188,8 @@ export default function StockPage() {
             setLastUpdateTime(new Date());
 
             setPriceHistory(prev => {
-                const newPoint: PricePoint = { 
-                    timestamp: Date.now(), 
+                const newPoint: PricePoint = {
+                    timestamp: Date.now(),
                     price: data.currentPrice,
                     ohlc: data.ohlc
                 };
@@ -245,7 +245,7 @@ export default function StockPage() {
             const positions = allCalls.filter((a: any) =>
                 a.account.xstockMint.toString() === stock.mint.toString() &&
                 (a.account.seller.toString() === wallet.publicKey?.toString() ||
-                 a.account.buyer?.toString() === wallet.publicKey?.toString())
+                    a.account.buyer?.toString() === wallet.publicKey?.toString())
             );
 
             setUserPositions(positions);
@@ -633,10 +633,10 @@ export default function StockPage() {
                     <Tooltip text="52-week price range with current position">
                         <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 h-[72px] hover:border-[#3f3f46] transition-colors cursor-help">
                             <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">52w Range</p>
-                            <RangeBar 
-                                low={stockData["52wLow"]} 
-                                high={stockData["52wHigh"]} 
-                                current={stockData.currentPrice} 
+                            <RangeBar
+                                low={stockData["52wLow"]}
+                                high={stockData["52wHigh"]}
+                                current={stockData.currentPrice}
                             />
                         </div>
                     </Tooltip>
@@ -653,10 +653,9 @@ export default function StockPage() {
                     <Tooltip text="Based on aggregated tick-level microstructure signals">
                         <div className="bg-[#0f1015] border border-[#27272a] rounded-lg p-2.5 h-[72px] hover:border-[#3f3f46] transition-colors cursor-help">
                             <p className="text-[9px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-1">Sentiment</p>
-                            <p className={`text-sm font-bold ${
-                                stockData.sentiment === 'Bullish' ? 'text-[#3DD68C]' : 
+                            <p className={`text-sm font-bold ${stockData.sentiment === 'Bullish' ? 'text-[#3DD68C]' :
                                 stockData.sentiment === 'Bearish' ? 'text-[#FF5C5C]' : 'text-yellow-500'
-                            }`}>
+                                }`}>
                                 {stockData.sentiment} <span className="text-xs font-normal">({getSentimentValue(stockData.sentiment)}%)</span>
                             </p>
                         </div>
@@ -676,7 +675,7 @@ export default function StockPage() {
                             <div className="w-full flex-1 min-h-[400px] bg-[#131722] rounded-lg border border-[#27272a] overflow-hidden">
                                 <ChartComponent priceHistory={priceHistory} historicalCandles={stockData.historicalCandles} />
                             </div>
-                            
+
                             {/* Controls below chart: Interval on left, Info on right */}
                             <div className="flex items-center justify-between mt-2">
                                 {/* Interval Selector */}
@@ -685,24 +684,23 @@ export default function StockPage() {
                                         <button
                                             key={interval}
                                             onClick={() => setChartInterval(interval)}
-                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                                chartInterval === interval 
-                                                    ? 'bg-orange-500 text-white' 
-                                                    : 'bg-[#27272a] text-[rgba(255,255,255,0.5)] hover:bg-[#3f3f46]'
-                                            }`}
+                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartInterval === interval
+                                                ? 'bg-orange-500 text-white'
+                                                : 'bg-[#27272a] text-[rgba(255,255,255,0.5)] hover:bg-[#3f3f46]'
+                                                }`}
                                         >
                                             {interval}
                                         </button>
                                     ))}
                                 </div>
-                                
+
                                 {/* Right side: Refresh/Live + Exchange/Oracle/Time info */}
                                 <div className="flex flex-col items-end gap-1">
                                     {/* Refresh & Live indicator */}
                                     <div className="flex items-center gap-2">
                                         <div className="flex items-center gap-1.5">
                                             <span className="text-[10px] text-[rgba(255,255,255,0.4)]">Refresh:</span>
-                                            <select 
+                                            <select
                                                 value={pollInterval}
                                                 onChange={(e) => setPollInterval(Number(e.target.value))}
                                                 className="bg-[#27272a] text-[10px] text-[#f5f5f5] px-1.5 py-1 rounded border border-[#3f3f46] cursor-pointer hover:bg-[#3f3f46] transition-colors focus:outline-none"
@@ -885,10 +883,10 @@ export default function StockPage() {
                                     const isBuyer = pos.account.buyer?.toString() === wallet.publicKey?.toString();
                                     const isSeller = pos.account.seller.toString() === wallet.publicKey?.toString() && !isBuyer;
                                     const hasBuyer = pos.account.buyer !== null;
-                                    
+
                                     // If you're the seller but there's a buyer, you don't own this position anymore
                                     const actualIsSeller = isSeller && !hasBuyer;
-                                    
+
                                     return (
                                         <PositionCard
                                             key={pos.publicKey.toString()}
@@ -970,7 +968,7 @@ export default function StockPage() {
                         </div>
                         <div className="pt-4 border-t border-[#27272a]">
                             <p className="text-sm text-[rgba(255,255,255,0.5)]">
-                                {stock.symbol} is a synthetic asset representing tokenized equity on the Solana blockchain. 
+                                {stock.symbol} is a synthetic asset representing tokenized equity on the Solana blockchain.
                                 Options trading is available through covered call contracts with USDC settlement.
                             </p>
                         </div>
@@ -1084,7 +1082,7 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
                 }
             });
         }
-        
+
         return () => {
             if (chartContainerRef.current && chartInstance.current) {
                 dispose(chartContainerRef.current);
@@ -1099,12 +1097,12 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
         if (!historicalCandles || historicalCandles.length === 0) return;
 
         // Check if historical candles have actually changed (different data, not just length)
-        const hasChanged = !lastHistoricalCandlesRef.current || 
+        const hasChanged = !lastHistoricalCandlesRef.current ||
             lastHistoricalCandlesRef.current.length !== historicalCandles.length ||
             (lastHistoricalCandlesRef.current.length > 0 && historicalCandles.length > 0 &&
-             (lastHistoricalCandlesRef.current[0].timestamp !== historicalCandles[0].timestamp ||
-              lastHistoricalCandlesRef.current[lastHistoricalCandlesRef.current.length - 1].timestamp !== 
-              historicalCandles[historicalCandles.length - 1].timestamp));
+                (lastHistoricalCandlesRef.current[0].timestamp !== historicalCandles[0].timestamp ||
+                    lastHistoricalCandlesRef.current[lastHistoricalCandlesRef.current.length - 1].timestamp !==
+                    historicalCandles[historicalCandles.length - 1].timestamp));
 
         if (hasChanged || !historicalLoaded.current) {
             // @ts-ignore
@@ -1112,7 +1110,7 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
             lastCandleCount.current = historicalCandles.length;
             historicalLoaded.current = true;
             lastHistoricalCandlesRef.current = historicalCandles;
-            
+
             // Calculate bar space to fill the chart width with all candles
             const chartWidth = chartContainerRef.current?.clientWidth || 800;
             const dataCount = historicalCandles.length;
@@ -1121,7 +1119,7 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
             const availableWidth = chartWidth - rightOffset;
             // Each bar needs space for the candle + gap between candles
             const barSpace = Math.max(6, Math.min(12, Math.floor(availableWidth / dataCount)));
-            
+
             // @ts-ignore
             chartInstance.current.setBarSpace(barSpace);
             // Scroll to show the most recent data (right side of chart)
@@ -1157,7 +1155,7 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
                 if (!points || points.length === 0) return;
 
                 let open: number, high: number, low: number, close: number;
-                
+
                 if (points.some(p => p.ohlc)) {
                     const ohlcPoints = points.filter(p => p.ohlc);
                     open = ohlcPoints[0]?.ohlc?.open ?? points[0].price;
@@ -1171,12 +1169,12 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
                     low = Math.min(...points.map(p => p.price));
                 }
 
-                candles.push({ 
-                    timestamp: time, 
-                    open, 
-                    high, 
-                    low, 
-                    close, 
+                candles.push({
+                    timestamp: time,
+                    open,
+                    high,
+                    low,
+                    close,
                     volume: points.length * 1000
                 });
             });
@@ -1184,7 +1182,7 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
             if (candles.length === 0) return;
 
             const isNewCandleAdded = candles.length > lastCandleCount.current;
-            
+
             if (lastCandleCount.current === 0 || isNewCandleAdded) {
                 // @ts-ignore
                 chartInstance.current.applyNewData(candles);
@@ -1193,7 +1191,7 @@ function ChartComponent({ priceHistory, historicalCandles }: { priceHistory: Pri
                 // @ts-ignore
                 chartInstance.current.updateData(lastCandle);
             }
-            
+
             lastCandleCount.current = candles.length;
         } else if (historicalLoaded.current && priceHistory.length > 0) {
             // Update the latest candle with real-time data
