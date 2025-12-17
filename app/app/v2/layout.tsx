@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
-import { Coins, Shield, TrendingUp, PieChart, Activity, Settings } from "lucide-react";
+import { Coins, Shield, TrendingUp, PieChart, Activity, Settings, BookOpen } from "lucide-react";
 
 const WalletMultiButton = dynamic(
     () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
@@ -51,11 +51,12 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
     };
 
     const navItems = [
-        { href: "/v2", label: "Earn", icon: Coins },
-        { href: "/v2/oracle", label: "Oracle", icon: Activity },
-        { href: "/v2/protect", label: "Protect", icon: Shield, comingSoon: true },
-        { href: "/v2/trade", label: "Trade", icon: TrendingUp, advanced: true },
         { href: "/v2/portfolio", label: "Portfolio", icon: PieChart },
+        { href: "/v2", label: "Earn", icon: Coins },
+        // { href: "/v2/protect", label: "Protect", icon: Shield, comingSoon: true },
+        // { href: "/v2/trade", label: "Trade", icon: TrendingUp, advanced: true },
+        { href: "/v2/oracle", label: "Oracle", icon: Activity },
+        { href: "/v2/docs", label: "Docs", icon: BookOpen }
     ];
 
     const isActive = (href: string) => {

@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Loader2, TrendingUp, Wallet, Clock } from "lucide-react";
-import { useAllVaults, useTotalTVL } from "../../hooks/useVault";
+import { useAllVaults } from "../../hooks/useVault";
 
-// Metadata for display
+// Metadata for display (price is approximate for USD TVL calculation)
 const VAULT_METADATA: Record<string, {
     name: string;
     strategy: string;
@@ -13,12 +13,13 @@ const VAULT_METADATA: Record<string, {
     nextRoll: string;
     apy: number;
     utilization: number;
+    price: number; // Approximate underlying price for TVL display
 }> = {
-    nvdax: { name: "NVDAx Vault", strategy: "Covered Call", tier: "Normal", nextRoll: "Pending", apy: 12.4, utilization: 0 },
-    aaplx: { name: "AAPLx Vault", strategy: "Covered Call", tier: "Conservative", nextRoll: "5d 8h", apy: 8.2, utilization: 42 },
-    tslax: { name: "TSLAx Vault", strategy: "Covered Call", tier: "Aggressive", nextRoll: "1d 3h", apy: 18.6, utilization: 72 },
-    spyx: { name: "SPYx Vault", strategy: "Covered Call", tier: "Conservative", nextRoll: "3d 6h", apy: 6.5, utilization: 35 },
-    metax: { name: "METAx Vault", strategy: "Covered Call", tier: "Normal", nextRoll: "4d 12h", apy: 15.2, utilization: 65 },
+    nvdax: { name: "NVDAx Vault", strategy: "Covered Call", tier: "Normal", nextRoll: "Pending", apy: 12.4, utilization: 0, price: 177 },
+    aaplx: { name: "AAPLx Vault", strategy: "Covered Call", tier: "Conservative", nextRoll: "5d 8h", apy: 8.2, utilization: 42, price: 195 },
+    tslax: { name: "TSLAx Vault", strategy: "Covered Call", tier: "Aggressive", nextRoll: "1d 3h", apy: 18.6, utilization: 72, price: 250 },
+    spyx: { name: "SPYx Vault", strategy: "Covered Call", tier: "Conservative", nextRoll: "3d 6h", apy: 6.5, utilization: 35, price: 590 },
+    metax: { name: "METAx Vault", strategy: "Covered Call", tier: "Normal", nextRoll: "4d 12h", apy: 15.2, utilization: 65, price: 580 },
 };
 
 function formatCurrency(value: number): string {
@@ -36,14 +37,16 @@ function formatAPY(value: number): string {
 export default function V2EarnDashboard() {
     const { connected } = useWallet();
     const { vaults, loading } = useAllVaults();
-    const { totalTVL } = useTotalTVL();
 
     const vaultList = Object.entries(VAULT_METADATA).map(([id, meta]) => {
         const liveData = vaults[id];
+        const tvlTokens = liveData ? liveData.tvl : 0;
+        const tvlUsd = tvlTokens * meta.price; // Convert to USD
         return {
             id,
             ...meta,
-            tvl: liveData ? liveData.tvl : 0,
+            tvl: tvlUsd,
+            tvlTokens,
             isLive: !!liveData,
             utilization: liveData && Number(liveData.totalShares) > 0 ? (liveData.utilizationCapBps / 100) : meta.utilization,
         };
@@ -51,6 +54,7 @@ export default function V2EarnDashboard() {
 
     const liveVaultCount = vaultList.filter(v => v.isLive).length;
     const avgAPY = vaultList.reduce((sum, v) => sum + v.apy, 0) / vaultList.length;
+    const calculatedTotalTVL = vaultList.reduce((sum, v) => sum + v.tvl, 0); // Sum of all USD TVLs
 
     return (
         <div className="w-full space-y-4">
@@ -69,7 +73,7 @@ export default function V2EarnDashboard() {
                         <div>
                             <p className="text-sm text-muted-foreground">Total TVL</p>
                             <div className="flex items-center gap-2">
-                                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalTVL)}</p>
+                                <p className="text-2xl font-bold text-foreground">{formatCurrency(calculatedTotalTVL)}</p>
                                 {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
                             </div>
                         </div>
