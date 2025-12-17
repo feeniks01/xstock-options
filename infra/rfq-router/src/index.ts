@@ -16,8 +16,8 @@ const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const RFQ_PROGRAM_ID = new PublicKey(
     process.env.RFQ_PROGRAM_ID || "3M2K6htNbWyZHtvvUyUME19f5GUS6x8AtGmitFENDT5Z"
 );
-const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3001");
-const WS_PORT = parseInt(process.env.WS_PORT || "3002");
+const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3005");
+const WS_PORT = parseInt(process.env.WS_PORT || "3006");
 const QUOTE_TIMEOUT_MS = parseInt(process.env.QUOTE_TIMEOUT_MS || "30000");
 
 // Types
@@ -60,6 +60,17 @@ const makerAllowlist = new Set<string>();
 // Express app for HTTP API
 const app = express();
 app.use(express.json());
+
+// CORS middleware - allow frontend requests
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(200);
+    }
+    next();
+});
 
 // WebSocket server for maker connections
 const wss = new WebSocketServer({ port: WS_PORT });

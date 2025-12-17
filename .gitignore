@@ -7,5 +7,6 @@ node_modules/
 *.md
 !/README.md
 !/V2_README.md
+!/HOW_IT_WORKS.md
 
 *.sql

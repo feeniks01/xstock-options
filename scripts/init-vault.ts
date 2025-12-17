@@ -11,6 +11,10 @@ const VAULT_PROGRAM_ID = new PublicKey(
     "8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY"
 );
 
+// V1 Mock Token Mints (already created on devnet)
+const V1_MOCK_NVDAX_MINT = new PublicKey("H9AqpTYHCGCvJ12YxRX5goGNTcG9VAai1hgQHzVf68vT");
+const V1_MOCK_USDC_MINT = new PublicKey("EnDeaApTGfsWxMwLbmJsTh1gSLVR8gJG26dqoDjfPVag");
+
 async function main() {
     const connection = new Connection("https://api.devnet.solana.com", "confirmed");
     const wallet = anchor.Wallet.local();
@@ -30,15 +34,22 @@ async function main() {
     console.log("Program ID:", program.programId.toBase58());
     console.log("Wallet:", wallet.publicKey.toBase58());
 
-    const assetId = "NVDAx";
+    const args = process.argv.slice(2);
+    const assetIdArg = args.find(arg => arg.startsWith("--asset="));
+    const mintArg = args.find(arg => arg.startsWith("--mint="));
+
+    const assetId = assetIdArg ? assetIdArg.split("=")[1] : "NVDAx";
+    const existingMintStr = mintArg ? mintArg.split("=")[1] : null;
     const utilizationCapBps = 8000; // 80% utilization cap
+
+    console.log(`\nPARAMS: Asset=${assetId}, Mint=${existingMintStr || "(Create New)"}`);
 
     // Derive vault PDA
     const [vaultPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("vault"), Buffer.from(assetId)],
         program.programId
     );
-    console.log("\nVault PDA:", vaultPda.toBase58());
+    console.log("Vault PDA:", vaultPda.toBase58());
 
     // Check if vault already exists
     try {
@@ -48,29 +59,35 @@ async function main() {
         console.log("  Authority:", existingVault.authority.toBase58());
         console.log("  Underlying Mint:", existingVault.underlyingMint.toBase58());
         console.log("  Share Mint:", existingVault.shareMint.toBase58());
-        console.log("  Total Assets:", existingVault.totalAssets.toString());
-        console.log("  Total Shares:", existingVault.totalShares.toString());
         return;
     } catch (error) {
         // Vault doesn't exist, continue with initialization
     }
 
-    // Create mock underlying token (USDC-like) for testing
-    console.log("\n📝 Creating mock USDC mint for testing...");
-
     let underlyingMint: PublicKey;
-    try {
-        underlyingMint = await createMint(
-            connection,
-            wallet.payer,
-            wallet.publicKey,
-            null,
-            6 // 6 decimals
-        );
-        console.log("✅ Mock USDC mint:", underlyingMint.toBase58());
-    } catch (error) {
-        console.error("❌ Failed to create mint:", error);
-        return;
+    if (existingMintStr) {
+        underlyingMint = new PublicKey(existingMintStr);
+        console.log("\nUsing specified underlying mint:", underlyingMint.toBase58());
+    } else if (assetId === "NVDAx") {
+        // Use the existing V1 mock NVDAx mint
+        underlyingMint = V1_MOCK_NVDAX_MINT;
+        console.log("\n✅ Using V1 Mock NVDAx mint:", underlyingMint.toBase58());
+    } else {
+        // Create a new mock token for other assets
+        console.log("\n📝 Creating new mock mint for", assetId, "...");
+        try {
+            underlyingMint = await createMint(
+                connection,
+                wallet.payer,
+                wallet.publicKey,
+                null,
+                6 // 6 decimals
+            );
+            console.log("✅ Created mock mint:", underlyingMint.toBase58());
+        } catch (error) {
+            console.error("❌ Failed to create mint:", error);
+            return;
+        }
     }
 
     // Derive share mint PDA

@@ -271,6 +271,121 @@ npx ts-node test-oracle.ts
 
 ---
 
+## Using the App (End-to-End Guide)
+
+This section walks you through using OptionsFi V2 from start to finish.
+
+### Step 1: Get Test Tokens
+
+Before you can deposit, you need test NVDAx tokens. Ask an admin to airdrop tokens to your wallet:
+
+```bash
+# Admin runs this to send tokens to a user
+ANCHOR_WALLET=~/.config/solana/id.json npx ts-node scripts/airdrop-vault-tokens.ts \
+  --asset=NVDAx \
+  --amount=1000 \
+  --recipient=<USER_WALLET_PUBKEY>
+```
+
+**Parameters:**
+- `--asset`: Which vault's token to mint (e.g., `NVDAx`)
+- `--amount`: Number of tokens to mint (e.g., `1000`)
+- `--recipient`: The user's wallet public key
+
+### Step 2: Connect Your Wallet
+
+1. Visit [http://localhost:3000/v2](http://localhost:3000/v2)
+2. Click the **wallet button** in the top-right corner
+3. Connect with **Phantom**, **Solflare**, or another Solana wallet
+4. Ensure your wallet is set to **Devnet**
+
+### Step 3: Navigate to a Vault
+
+1. From the Earn dashboard, click on a vault (e.g., **NVDAx Vault**)
+2. You'll see the vault detail page with:
+   - Live Pyth price feed
+   - Current strike price (based on offset %)
+   - Epoch information
+   - TVL and utilization stats
+
+### Step 4: Deposit Tokens
+
+1. In the **Deposit** tab (right panel):
+   - Your balance shows next to the wallet icon
+   - Click **MAX** to fill your full balance, or **HALF** for 50%
+   - Or manually enter an amount
+2. Review the deposit summary:
+   - You deposit: `X NVDAx`
+   - You receive: `X vNVDAx` (vault shares)
+   - Withdraw unlocks at epoch end
+3. Click **Deposit** and approve the transaction
+
+### Step 5: Monitor Your Position
+
+After depositing, you can track:
+- **Your vault shares**: Displayed in the UI
+- **Estimated premium**: Based on current RFQ market rates
+- **Epoch countdown**: When the current options cycle ends
+
+### Step 6: Request RFQ (Advanced/Admin)
+
+Test the RFQ system for fetching real market maker quotes:
+
+1. **Start the RFQ Router** (in a separate terminal):
+   ```bash
+   cd infra/rfq-router
+   npm run dev
+   ```
+
+2. **Start the Mock Market Maker** (in another terminal):
+   ```bash
+   cd scripts
+   npx ts-node mock-market-maker.ts
+   ```
+
+3. On the vault page, look for the **Request Quote** section
+4. Click **Request Quote from Market Makers**
+5. Watch as quotes are collected (5 seconds)
+6. The best quote is automatically accepted
+
+### Step 7: Withdraw (After Epoch Ends)
+
+1. Switch to the **Withdraw** tab
+2. Enter the number of shares to withdraw (or click **MAX**)
+3. Click **Request Withdrawal**
+4. Wait for the epoch to end
+5. Once claimable, click **Claim Withdrawal** to receive your tokens + yield
+
+---
+
+## RFQ System
+
+The Request-for-Quote system enables institutional-grade option pricing.
+
+### Starting the RFQ Services
+
+```bash
+# Terminal 1: RFQ Router (aggregates quotes)
+cd infra/rfq-router && npm run dev
+
+# Terminal 2: Mock Market Maker (simulates quotes)
+cd scripts && npx ts-node mock-market-maker.ts
+```
+
+**Ports:**
+- HTTP API: `http://localhost:3005`
+- WebSocket: `ws://localhost:3006`
+
+### RFQ Flow
+
+1. Vault broadcasts RFQ for covered call options
+2. Market makers submit competing quotes via WebSocket
+3. Best quote selected (highest premium for sellers)
+4. Trade can be executed on-chain
+5. Options tracked until settlement
+
+---
+
 ## Repository Structure (V2)
 
 ```

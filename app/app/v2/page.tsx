@@ -3,72 +3,23 @@
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Loader2, TrendingUp, Wallet, Clock } from "lucide-react";
+import { useAllVaults, useTotalTVL } from "../../hooks/useVault";
 
-// Default vault data when on-chain data isn't available
-// NVDAx is live on devnet as of 2024-12-16
-const DEFAULT_VAULTS = [
-    {
-        id: "nvdax",
-        name: "NVDAx Vault",
-        symbol: "NVDAx",
-        apy: 12.4,
-        tvl: 0, // Will be populated from on-chain data
-        nextRoll: "Pending",
-        strategy: "Covered Call",
-        tier: "Normal",
-        utilization: 0,
-        isLive: true, // Deployed on devnet
-        vaultPda: "3v8cc4nYDYQDzVbyPGMDQnCuDKHNmZAkT37DgNz4yDyP",
-    },
-    {
-        id: "aaplx",
-        name: "AAPLx Vault",
-        symbol: "AAPLx",
-        apy: 8.2,
-        tvl: 32100,
-        nextRoll: "5d 8h",
-        strategy: "Covered Call",
-        tier: "Conservative",
-        utilization: 42,
-        isLive: false,
-    },
-    {
-        id: "tslax",
-        name: "TSLAx Vault",
-        symbol: "TSLAx",
-        apy: 18.6,
-        tvl: 28450,
-        nextRoll: "1d 3h",
-        strategy: "Covered Call",
-        tier: "Aggressive",
-        utilization: 72,
-        isLive: false,
-    },
-    {
-        id: "spyx",
-        name: "SPYx Vault",
-        symbol: "SPYx",
-        apy: 6.5,
-        tvl: 125000,
-        nextRoll: "3d 6h",
-        strategy: "Covered Call",
-        tier: "Conservative",
-        utilization: 35,
-        isLive: false,
-    },
-    {
-        id: "metax",
-        name: "METAx Vault",
-        symbol: "METAx",
-        apy: 15.2,
-        tvl: 18500,
-        nextRoll: "4d 12h",
-        strategy: "Covered Call",
-        tier: "Normal",
-        utilization: 65,
-        isLive: false,
-    },
-];
+// Metadata for display
+const VAULT_METADATA: Record<string, {
+    name: string;
+    strategy: string;
+    tier: string;
+    nextRoll: string;
+    apy: number;
+    utilization: number;
+}> = {
+    nvdax: { name: "NVDAx Vault", strategy: "Covered Call", tier: "Normal", nextRoll: "Pending", apy: 12.4, utilization: 0 },
+    aaplx: { name: "AAPLx Vault", strategy: "Covered Call", tier: "Conservative", nextRoll: "5d 8h", apy: 8.2, utilization: 42 },
+    tslax: { name: "TSLAx Vault", strategy: "Covered Call", tier: "Aggressive", nextRoll: "1d 3h", apy: 18.6, utilization: 72 },
+    spyx: { name: "SPYx Vault", strategy: "Covered Call", tier: "Conservative", nextRoll: "3d 6h", apy: 6.5, utilization: 35 },
+    metax: { name: "METAx Vault", strategy: "Covered Call", tier: "Normal", nextRoll: "4d 12h", apy: 15.2, utilization: 65 },
+};
 
 function formatCurrency(value: number): string {
     return new Intl.NumberFormat("en-US", {
@@ -84,16 +35,27 @@ function formatAPY(value: number): string {
 
 export default function V2EarnDashboard() {
     const { connected } = useWallet();
+    const { vaults, loading } = useAllVaults();
+    const { totalTVL } = useTotalTVL();
 
-    // For now, use default vaults. In production, these would come from on-chain
-    const vaults = DEFAULT_VAULTS;
-    const totalTVL = vaults.reduce((sum, v) => sum + v.tvl, 0);
-    const avgAPY = vaults.reduce((sum, v) => sum + v.apy, 0) / vaults.length;
+    const vaultList = Object.entries(VAULT_METADATA).map(([id, meta]) => {
+        const liveData = vaults[id];
+        return {
+            id,
+            ...meta,
+            tvl: liveData ? liveData.tvl : 0,
+            isLive: !!liveData,
+            utilization: liveData && Number(liveData.totalShares) > 0 ? (liveData.utilizationCapBps / 100) : meta.utilization,
+        };
+    });
+
+    const liveVaultCount = vaultList.filter(v => v.isLive).length;
+    const avgAPY = vaultList.reduce((sum, v) => sum + v.apy, 0) / vaultList.length;
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8">
+        <div className="w-full space-y-4">
             {/* Hero Section */}
-            <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600/20 via-purple-600/10 to-background border border-blue-500/20 p-8">
+            <section className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600/20 via-purple-600/10 to-background border border-blue-500/20 p-6">
                 <div className="relative z-10">
                     <h1 className="text-3xl font-bold text-foreground mb-3">
                         Earn premium on xStocks
@@ -106,7 +68,10 @@ export default function V2EarnDashboard() {
                     <div className="flex gap-8 mb-6">
                         <div>
                             <p className="text-sm text-muted-foreground">Total TVL</p>
-                            <p className="text-2xl font-bold text-foreground">{formatCurrency(totalTVL)}</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalTVL)}</p>
+                                {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
+                            </div>
                         </div>
                         <div>
                             <p className="text-sm text-muted-foreground">Avg APY</p>
@@ -114,7 +79,7 @@ export default function V2EarnDashboard() {
                         </div>
                         <div>
                             <p className="text-sm text-muted-foreground">Vaults</p>
-                            <p className="text-2xl font-bold text-foreground">{vaults.length}</p>
+                            <p className="text-2xl font-bold text-foreground">{liveVaultCount}/{vaultList.length} Live</p>
                         </div>
                     </div>
 
@@ -158,18 +123,22 @@ export default function V2EarnDashboard() {
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
                         <TrendingUp className="w-5 h-5" />
-                        Top Vaults
+                        All Vaults
                     </h2>
-                    <span className="text-sm text-muted-foreground">
-                        {vaults.filter(v => v.isLive).length} of {vaults.length} live on devnet
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                        {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+                        {liveVaultCount} live on Devnet
                     </span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {vaults.map((vault) => (
+                    {vaultList.map((vault) => (
                         <Link
                             key={vault.id}
                             href={`/v2/earn/${vault.id}`}
-                            className="group rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 hover:border-blue-500/30 p-5 transition-all"
+                            className={`group rounded-xl border p-5 transition-all ${vault.isLive
+                                ? "bg-secondary/30 border-border hover:bg-secondary/50 hover:border-blue-500/30"
+                                : "bg-secondary/10 border-border/50 opacity-70"
+                                }`}
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div>
@@ -179,8 +148,14 @@ export default function V2EarnDashboard() {
                                     <p className="text-sm text-muted-foreground">{vault.strategy}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {vault.isLive && (
-                                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                    {vault.isLive ? (
+                                        <span className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Live
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-400 border border-gray-500/30">
+                                            Soon
+                                        </span>
                                     )}
                                     <span className={`text-xs px-2 py-1 rounded-full ${vault.tier === "Aggressive"
                                         ? "bg-red-500/20 text-red-400"
@@ -235,7 +210,7 @@ export default function V2EarnDashboard() {
                 <div className="rounded-xl border border-border bg-secondary/30 divide-y divide-border">
                     <div className="p-4 flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-sm text-muted-foreground">All V2 programs deployed to devnet</span>
+                        <span className="text-sm text-muted-foreground">All V2 vaults (NVDAx, TSLAx, SPYx...) initialized on devnet</span>
                         <span className="ml-auto text-xs text-muted-foreground">Just now</span>
                     </div>
                     <div className="p-4 flex items-center gap-3">
