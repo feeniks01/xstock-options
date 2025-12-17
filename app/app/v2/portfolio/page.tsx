@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
     Wallet, Clock, ChevronRight, ChevronDown, MoreHorizontal,
     PieChart, ExternalLink, RefreshCw, Zap, Maximize2, X, Sparkles,
-    Settings, Plus, Copy, Eye
+    Settings, Plus, Copy, Eye, Activity, ArrowUpRight, ArrowDownRight,
+    Loader2, CheckCircle, AlertCircle
 } from "lucide-react";
-import { useAllVaults } from "../../../hooks/useVault";
+import { useAllVaults, useVault } from "../../../hooks/useVault";
 import { useWalletActivity, WalletActivity } from "../../../hooks/useWalletActivity";
 import { usePythPrices } from "../../../hooks/usePythPrices";
 
@@ -61,6 +62,305 @@ const getEpochTiming = () => {
     };
 };
 
+// Modal for managing a position (deposit/withdraw) without leaving Portfolio
+function ManagePositionModal({
+    position,
+    onClose,
+    oraclePrice
+}: {
+    position: Position;
+    onClose: () => void;
+    oraclePrice: number;
+}) {
+    const [activeTab, setActiveTab] = useState<"deposit" | "withdraw">("deposit");
+    const [depositAmount, setDepositAmount] = useState("");
+    const [withdrawAmount, setWithdrawAmount] = useState("");
+
+    const meta = VAULT_METADATA[position.vaultId];
+    const decimals = 6;
+
+    // Use the vault hook for this specific vault
+    const {
+        vaultData,
+        userShareBalance,
+        userUnderlyingBalance,
+        pendingWithdrawal,
+        deposit,
+        requestWithdrawal,
+        processWithdrawal,
+        txStatus,
+        txError,
+        txSignature,
+        refresh
+    } = useVault(position.vaultId);
+
+    const depositNum = parseFloat(depositAmount) || 0;
+    const withdrawNum = parseFloat(withdrawAmount) || 0;
+
+    const formatCurrency = (n: number) => {
+        if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+        return `$${n.toFixed(2)}`;
+    };
+
+    const formatTokenAmount = (amount: number) => (amount / Math.pow(10, decimals)).toFixed(2);
+
+    const handleDeposit = async () => {
+        if (!depositNum || depositNum <= 0) return;
+        try {
+            const amountInBaseUnits = Math.floor(depositNum * Math.pow(10, decimals));
+            await deposit(amountInBaseUnits);
+            setDepositAmount("");
+        } catch (err) {
+            console.error("Deposit failed:", err);
+        }
+    };
+
+    const handleRequestWithdrawal = async () => {
+        if (!withdrawNum || withdrawNum <= 0) return;
+        try {
+            const sharesInBaseUnits = Math.floor(withdrawNum * Math.pow(10, decimals));
+            await requestWithdrawal(sharesInBaseUnits);
+            setWithdrawAmount("");
+        } catch (err) {
+            console.error("Withdrawal request failed:", err);
+        }
+    };
+
+    const handleProcessWithdrawal = async () => {
+        try {
+            await processWithdrawal();
+        } catch (err) {
+            console.error("Process withdrawal failed:", err);
+        }
+    };
+
+    const handleMax = () => {
+        if (activeTab === "deposit") {
+            setDepositAmount(formatTokenAmount(userUnderlyingBalance));
+        } else {
+            setWithdrawAmount(formatTokenAmount(userShareBalance));
+        }
+    };
+
+    const getTxButtonText = (defaultText: string) => {
+        switch (txStatus) {
+            case "building": return "Building...";
+            case "signing": return "Sign in wallet...";
+            case "confirming": return "Confirming...";
+            default: return defaultText;
+        }
+    };
+
+    const isProcessing = txStatus !== "idle" && txStatus !== "success" && txStatus !== "error";
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md mx-4 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+                    <div className="flex items-center gap-3">
+                        <img src={meta?.logo} alt={meta?.symbol} className="w-10 h-10 rounded-xl" />
+                        <div>
+                            <h2 className="text-lg font-semibold text-white">{meta?.name || position.vaultId}</h2>
+                            <p className="text-xs text-gray-500">Manage Position</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+                        <X className="w-5 h-5 text-gray-400" />
+                    </button>
+                </div>
+
+                {/* Position Summary */}
+                <div className="px-5 py-4 bg-gray-800/30 border-b border-gray-800">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <p className="text-xs text-gray-500">Position</p>
+                            <p className="text-lg font-semibold text-white">{formatCurrency(position.sharesUsd)}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">P&L</p>
+                            <p className={`text-lg font-semibold ${position.unrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                {position.unrealizedPnl >= 0 ? "+" : ""}{formatCurrency(position.unrealizedPnl)}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">APY</p>
+                            <p className="text-lg font-semibold text-green-400">{position.vaultApy.toFixed(1)}%</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-gray-800">
+                    <button
+                        onClick={() => setActiveTab("deposit")}
+                        className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === "deposit"
+                            ? "text-green-400 border-b-2 border-green-400 bg-green-400/5"
+                            : "text-gray-500 hover:text-gray-300"}`}
+                    >
+                        <ArrowDownRight className="w-4 h-4 inline mr-1.5" />
+                        Deposit
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("withdraw")}
+                        className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === "withdraw"
+                            ? "text-orange-400 border-b-2 border-orange-400 bg-orange-400/5"
+                            : "text-gray-500 hover:text-gray-300"}`}
+                    >
+                        <ArrowUpRight className="w-4 h-4 inline mr-1.5" />
+                        Withdraw
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-5">
+                    {activeTab === "deposit" ? (
+                        <div className="space-y-4">
+                            <div>
+                                <div className="flex justify-between text-xs mb-2">
+                                    <span className="text-gray-500">Amount to deposit</span>
+                                    <span className="text-gray-400">
+                                        Balance: {formatTokenAmount(userUnderlyingBalance)} {meta?.symbol?.replace('x', '')}
+                                    </span>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={depositAmount}
+                                        onChange={(e) => setDepositAmount(e.target.value)}
+                                        placeholder="0.00"
+                                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg focus:border-green-500 focus:outline-none"
+                                    />
+                                    <button
+                                        onClick={handleMax}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-green-400 hover:bg-green-400/10 rounded transition-colors"
+                                    >
+                                        MAX
+                                    </button>
+                                </div>
+                                {depositNum > 0 && (
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        ≈ {formatCurrency(depositNum * oraclePrice)} at current price
+                                    </p>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={handleDeposit}
+                                disabled={!depositNum || depositNum <= 0 || isProcessing}
+                                className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 disabled:text-gray-500 text-black font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                            >
+                                {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+                                {getTxButtonText("Deposit")}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {pendingWithdrawal && pendingWithdrawal.shares > 0 ? (
+                                <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4">
+                                    <p className="text-sm text-orange-400 mb-2">Pending Withdrawal</p>
+                                    <p className="text-lg font-semibold text-white mb-3">
+                                        {formatTokenAmount(pendingWithdrawal.shares)} shares
+                                    </p>
+                                    <button
+                                        onClick={handleProcessWithdrawal}
+                                        disabled={isProcessing}
+                                        className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 text-black font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {getTxButtonText("Process Withdrawal")}
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div>
+                                        <div className="flex justify-between text-xs mb-2">
+                                            <span className="text-gray-500">Shares to withdraw</span>
+                                            <span className="text-gray-400">
+                                                Available: {formatTokenAmount(userShareBalance)} shares
+                                            </span>
+                                        </div>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={withdrawAmount}
+                                                onChange={(e) => setWithdrawAmount(e.target.value)}
+                                                placeholder="0.00"
+                                                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg focus:border-orange-500 focus:outline-none"
+                                            />
+                                            <button
+                                                onClick={handleMax}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-orange-400 hover:bg-orange-400/10 rounded transition-colors"
+                                            >
+                                                MAX
+                                            </button>
+                                        </div>
+                                        {withdrawNum > 0 && (
+                                            <p className="text-xs text-gray-500 mt-2">
+                                                ≈ {formatCurrency(withdrawNum * (vaultData?.sharePrice || 1) * oraclePrice)} estimated
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="bg-gray-800/50 rounded-lg p-3 text-xs text-gray-400">
+                                        <p className="flex items-center gap-1.5">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            Withdrawals are queued and processed at epoch end ({position.withdrawUnlockIn})
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        onClick={handleRequestWithdrawal}
+                                        disabled={!withdrawNum || withdrawNum <= 0 || isProcessing}
+                                        className="w-full py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:text-gray-500 text-black font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {getTxButtonText("Request Withdrawal")}
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Transaction feedback */}
+                    {txStatus === "success" && txSignature && (
+                        <div className="mt-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                            <span className="text-sm text-green-400">Transaction confirmed!</span>
+                            <a
+                                href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-auto text-xs text-green-400 hover:underline flex items-center gap-1"
+                            >
+                                View <ExternalLink className="w-3 h-3" />
+                            </a>
+                        </div>
+                    )}
+
+                    {txStatus === "error" && txError && (
+                        <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                            <span className="text-sm text-red-400">{txError}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-3 bg-gray-800/30 border-t border-gray-800">
+                    <Link
+                        href={`/v2/earn/${position.vaultId}`}
+                        className="text-xs text-gray-500 hover:text-blue-400 flex items-center gap-1 justify-center"
+                    >
+                        View full vault details <ExternalLink className="w-3 h-3" />
+                    </Link>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
 export default function PortfolioPage() {
     const { connected, publicKey } = useWallet();
     const { vaults, loading } = useAllVaults();
@@ -77,6 +377,7 @@ export default function PortfolioPage() {
     const [showPnlBreakdown, setShowPnlBreakdown] = useState(false);
     const [hoveredEvent, setHoveredEvent] = useState<number | null>(null);
     const [openMenu, setOpenMenu] = useState<string | null>(null);
+    const [managingPosition, setManagingPosition] = useState<Position | null>(null);
 
     const epochTiming = useMemo(() => getEpochTiming(), []);
 
@@ -278,6 +579,31 @@ export default function PortfolioPage() {
             points.push({ value: stats.totalVaultValue, date: new Date(now) });
         }
 
+        // If we only have start and end points (no activity), add intermediate points for smoother chart
+        if (points.length <= 2) {
+            const startPoint = points[0];
+            const endPoint = points[points.length - 1];
+            const startVal = startPoint.value;
+            const endVal = endPoint.value;
+            const startTs = startPoint.date.getTime();
+            const endTs = endPoint.date.getTime();
+            const range = endTs - startTs;
+
+            // Add 10 intermediate points with slight variation for visual interest
+            const intermediatePoints: { value: number; date: Date }[] = [];
+            for (let i = 1; i <= 10; i++) {
+                const progress = i / 11;
+                const time = startTs + range * progress;
+                // Linear interpolation with tiny random variation (±0.5%)
+                const variation = (Math.random() - 0.5) * 0.01;
+                const value = startVal + (endVal - startVal) * progress * (1 + variation);
+                intermediatePoints.push({ value, date: new Date(time) });
+            }
+
+            // Insert intermediate points between start and end
+            points.splice(1, 0, ...intermediatePoints);
+        }
+
         // Generate premium bars (mock epochs)
         const bars: { epoch: number; premium: number; yieldPercent: number }[] = [];
         const weekMs = 604800000;
@@ -338,287 +664,314 @@ export default function PortfolioPage() {
         );
     }
 
-    // Expanded modal
+    // Expanded modal - constrained height
     if (chartExpanded) {
+        const hasActivity = walletActivities.length > 0;
         return (
-            <div className="fixed inset-0 z-50 bg-gray-900/98 backdrop-blur-sm flex flex-col p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                        <ChartModeSelector mode={chartMode} setMode={setChartMode} />
-                        <span className="text-4xl font-bold text-white">{displayValue}</span>
-                        <span className={`text-lg ${stats.totalUnrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                            {formatCurrency(stats.totalUnrealizedPnl)} P&L
-                        </span>
+            <div className="fixed inset-0 z-50 bg-gray-900/95 backdrop-blur-sm flex items-center justify-center p-8" onClick={() => setChartExpanded(false)}>
+                <div className="w-full max-w-5xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                            <ChartModeSelector mode={chartMode} setMode={setChartMode} />
+                            <div className="flex items-baseline gap-3">
+                                <span className="text-3xl font-bold text-white">{displayValue}</span>
+                                <span className={`text-lg ${stats.totalUnrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                    {formatCurrency(stats.totalUnrealizedPnl)} P&L
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                                <input type="checkbox" checked={showBaseline} onChange={(e) => setShowBaseline(e.target.checked)} className="rounded" />
+                                Show Net Deposits
+                            </label>
+                            {(["1D", "1W", "1M", "ALL"] as const).map(r => (
+                                <button key={r} onClick={() => setChartRange(r)} className={`px-3 py-1 rounded text-sm ${chartRange === r ? "bg-gray-700 text-white" : "text-gray-500 hover:text-white"}`}>{r}</button>
+                            ))}
+                            <button onClick={() => setChartExpanded(false)} className="ml-4 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400"><X className="w-5 h-5" /></button>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
-                            <input type="checkbox" checked={showBaseline} onChange={(e) => setShowBaseline(e.target.checked)} className="rounded" />
-                            Show Net Deposits
-                        </label>
-                        {(["1D", "1W", "1M", "ALL"] as const).map(r => (
-                            <button key={r} onClick={() => setChartRange(r)} className={`px-3 py-1 rounded text-sm ${chartRange === r ? "bg-gray-700 text-white" : "text-gray-500 hover:text-white"}`}>{r}</button>
-                        ))}
-                        <button onClick={() => setChartExpanded(false)} className="ml-4 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400"><X className="w-5 h-5" /></button>
+                    <div className="flex-1 bg-gray-800/40 rounded-xl border border-gray-700/40 p-6 min-h-[400px]">
+                        {!hasActivity ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center">
+                                <Activity className="w-16 h-16 text-gray-600 mb-4" />
+                                <p className="text-gray-400 text-lg mb-2">No transaction history yet</p>
+                                <p className="text-gray-500 text-sm">Deposit or withdraw to see your performance over time</p>
+                            </div>
+                        ) : (
+                            <ChartContent chartData={chartData} chartMin={chartMin} chartMax={chartMax} minTime={minTime} timeRange={timeRange}
+                                netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode} showBaseline={showBaseline}
+                                hoveredEvent={hoveredEvent} setHoveredEvent={setHoveredEvent} premiumBars={premiumBars} />
+                        )}
                     </div>
-                </div>
-                <div className="flex-1 bg-gray-800/40 rounded-xl border border-gray-700/40 p-6">
-                    <ChartContent chartData={chartData} chartMin={chartMin} chartMax={chartMax} minTime={minTime} timeRange={timeRange}
-                        netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode} showBaseline={showBaseline}
-                        hoveredEvent={hoveredEvent} setHoveredEvent={setHoveredEvent} premiumBars={premiumBars} />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-3">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-xl font-bold text-white">Portfolio</h1>
-                    <p className="text-xs text-gray-500">{publicKey?.toString().slice(0, 4)}...{publicKey?.toString().slice(-4)}</p>
-                </div>
-                <button onClick={handleRefresh} disabled={isRefreshing} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs text-gray-300">
-                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} /> Refresh
-                </button>
-            </div>
-
-            {/* Split Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                {/* Hero Chart */}
-                <div className="lg:col-span-2">
-                    <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 overflow-hidden" style={{ minHeight: "340px" }}>
-                        {/* Chart Header */}
-                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-700/40">
-                            <div className="flex items-center gap-4">
-                                <ChartModeSelector mode={chartMode} setMode={setChartMode} />
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-2xl font-bold text-white">{displayValue}</span>
-                                    <span className={`text-sm ${stats.totalUnrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                        {formatCurrency(stats.totalUnrealizedPnl)} P&L
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <label className="hidden md:flex items-center gap-1.5 text-[10px] text-gray-500 cursor-pointer">
-                                    <input type="checkbox" checked={showBaseline} onChange={(e) => setShowBaseline(e.target.checked)} className="w-3 h-3 rounded" />
-                                    Baseline
-                                </label>
-                                {(["1D", "1W", "1M", "ALL"] as const).map(r => (
-                                    <button key={r} onClick={() => setChartRange(r)} className={`px-2 py-0.5 rounded text-xs font-medium ${chartRange === r ? "bg-gray-700 text-white" : "text-gray-500 hover:text-gray-300"}`}>{r}</button>
-                                ))}
-                                <button onClick={() => setChartExpanded(true)} className="ml-1 p-1.5 rounded-lg hover:bg-gray-700 text-gray-500 hover:text-white"><Maximize2 className="w-4 h-4" /></button>
-                            </div>
-                        </div>
-
-                        {/* Chart Body */}
-                        <div className="p-3" style={{ height: "220px" }}>
-                            <ChartContent chartData={chartData} chartMin={chartMin} chartMax={chartMax} minTime={minTime} timeRange={timeRange}
-                                netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode} showBaseline={showBaseline}
-                                hoveredEvent={hoveredEvent} setHoveredEvent={setHoveredEvent} premiumBars={premiumBars} />
-                        </div>
-
-                        {/* Premium by Epoch mini bar row */}
-                        {chartMode !== "premium" && (
-                            <div className="px-4 pb-3">
-                                <div className="flex items-center gap-1 h-8">
-                                    <span className="text-[9px] text-gray-500 w-16">Premium</span>
-                                    <div className="flex-1 flex items-end gap-0.5 h-full">
-                                        {premiumBars.map((bar, i) => (
-                                            <div key={i} className="flex-1 bg-green-500/30 hover:bg-green-500/50 rounded-t transition-colors cursor-pointer group relative"
-                                                style={{ height: `${Math.max(20, (bar.premium / Math.max(...premiumBars.map(b => b.premium))) * 100)}%` }}>
-                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[9px] text-white whitespace-nowrap z-10">
-                                                    Epoch #{bar.epoch} • {formatCurrency(bar.premium)} • {bar.yieldPercent.toFixed(2)}%
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+        <>
+            <div className="space-y-3">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-xl font-bold text-white">Portfolio</h1>
+                        <p className="text-xs text-gray-500">{publicKey?.toString().slice(0, 4)}...{publicKey?.toString().slice(-4)}</p>
                     </div>
+                    <button onClick={handleRefresh} disabled={isRefreshing} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs text-gray-300">
+                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} /> Refresh
+                    </button>
                 </div>
 
-                {/* Sidebar - Merged Overview + Next + Holdings */}
-                <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 overflow-hidden">
-                    {/* Overview Section */}
-                    <div className="p-4 space-y-3">
-                        <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Overview</h3>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between"><span className="text-gray-400">Value</span><span className="font-semibold text-white">{formatCurrency(stats.totalVaultValue)}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-400">Net Deposits</span><span className="text-gray-300">{formatCurrency(stats.netDeposits)}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-400">P&L</span><span className={stats.totalUnrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}>{formatCurrency(stats.totalUnrealizedPnl)} ({formatPercent(stats.performancePercent)})</span></div>
-                            <div className="flex justify-between"><span className="text-gray-400">Est. APY</span><span className="text-green-400">{stats.estApy.toFixed(1)}%</span></div>
-                        </div>
-                    </div>
-
-                    {/* Next Roll Section */}
-                    {nextRoll && (
-                        <div className="border-t border-gray-700/40 p-4 bg-blue-500/5">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-xs font-medium text-blue-400 uppercase tracking-wide flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> Next</h3>
-                                <span className="text-xs font-bold text-white bg-blue-500/20 px-2 py-0.5 rounded-full">{nextRoll.nextRollIn}</span>
-                            </div>
-                            <div className="space-y-1.5 text-sm">
-                                <div className="flex justify-between"><span className="text-gray-400">Est. Distribution</span><span className="text-green-400">{formatCurrency(stats.totalAccrued)}</span></div>
-                                <div className="flex justify-between"><span className="text-gray-400">Withdraw Unlock</span><span className="text-gray-300">{nextRoll.withdrawUnlockIn}</span></div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Holdings Section */}
-                    {positions.length > 1 && (
-                        <div className="border-t border-gray-700/40 p-4">
-                            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Holdings</h3>
-                            <div className="space-y-1.5">
-                                {positions.map(p => (
-                                    <div key={p.vaultId} className="flex items-center justify-between text-sm">
-                                        <div className="flex items-center gap-2">
-                                            <img src={VAULT_METADATA[p.vaultId].logo} alt="" className="w-4 h-4 rounded-full" />
-                                            <span className="text-white">{p.symbol}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-gray-300">{formatCurrency(p.sharesUsd)}</span>
-                                            <span className="text-gray-500 w-12 text-right">{p.allocation.toFixed(0)}%</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {positions.length === 1 && (
-                        <div className="border-t border-gray-700/40 p-4 text-center">
-                            <span className="text-sm text-gray-400">{positions[0].symbol}</span>
-                            <span className="text-xs text-gray-500 ml-2">100%</span>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Positions + Activity Side by Side */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                {/* Positions - 2/3 width (primary work surface) */}
-                <div className={activityPanelOpen ? "lg:col-span-2" : "lg:col-span-3"}>
-                    <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-sm font-medium text-gray-400 flex items-center gap-1.5">
-                            <PieChart className="w-4 h-4" /> Positions
-                        </h2>
-                        {!activityPanelOpen && (
-                            <button
-                                onClick={() => setActivityPanelOpen(true)}
-                                className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1"
-                            >
-                                <Clock className="w-3 h-3" /> Show Activity
-                            </button>
-                        )}
-                    </div>
-                    <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 divide-y divide-gray-700/40">
-                        {positions.map((position) => (
-                            <PositionRow
-                                key={position.vaultId}
-                                position={position}
-                                meta={VAULT_METADATA[position.vaultId]}
-                                formatCurrency={formatCurrency}
-                                formatPercent={formatPercent}
-                                openMenu={openMenu}
-                                setOpenMenu={setOpenMenu}
-                            />
-                        ))}
-                    </div>
-
-                    {/* P&L Breakdown - Expandable under positions */}
-                    <div className="mt-3">
-                        <button
-                            onClick={() => setShowPnlBreakdown(!showPnlBreakdown)}
-                            className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                        >
-                            <ChevronRight className={`w-3 h-3 transition-transform ${showPnlBreakdown ? "rotate-90" : ""}`} />
-                            What drove your P&L?
-                        </button>
-                        {showPnlBreakdown && (
-                            <div className="mt-2 bg-gray-800/40 rounded-xl border border-gray-700/40 p-4">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                    <div>
-                                        <p className="text-gray-500 text-xs mb-1">Underlying Move</p>
-                                        <p className={stats.breakdown.underlyingMoveImpact >= 0 ? "text-green-400" : "text-red-400"}>
-                                            {formatCurrency(stats.breakdown.underlyingMoveImpact)}
-                                        </p>
-                                        <p className="text-[10px] text-gray-600">NVDAx spot change</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500 text-xs mb-1">Premium Earned</p>
-                                        <p className="text-green-400">{formatCurrency(stats.breakdown.premiumEarned)}</p>
-                                        <p className="text-[10px] text-gray-600">Realized + accrued</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500 text-xs mb-1">Option Overlay</p>
-                                        <p className={stats.breakdown.overlayImpact >= 0 ? "text-blue-400" : "text-orange-400"}>
-                                            {formatCurrency(stats.breakdown.overlayImpact)}
-                                        </p>
-                                        <p className="text-[10px] text-gray-600">Cap/assignment</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500 text-xs mb-1">Fees</p>
-                                        <p className="text-red-400">{formatCurrency(stats.breakdown.fees)}</p>
-                                        <p className="text-[10px] text-gray-600">Mgmt + performance</p>
+                {/* Split Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    {/* Hero Chart */}
+                    <div className="lg:col-span-2">
+                        <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 overflow-hidden" style={{ minHeight: "340px" }}>
+                            {/* Chart Header */}
+                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-700/40">
+                                <div className="flex items-center gap-4">
+                                    <ChartModeSelector mode={chartMode} setMode={setChartMode} />
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-2xl font-bold text-white">{displayValue}</span>
+                                        <span className={`text-sm ${stats.totalUnrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                            {formatCurrency(stats.totalUnrealizedPnl)} P&L
+                                        </span>
                                     </div>
                                 </div>
-                                <p className="text-[10px] text-gray-600 mt-3 pt-2 border-t border-gray-700/40">
-                                    * Vault P&L = Current NAV − Net Deposits. Breakdown is estimated from strategy model.
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Activity Panel - 1/3 width (collapsible sidebar) */}
-                {activityPanelOpen && (
-                    <div className="lg:col-span-1">
-                        <div className="flex items-center justify-between mb-2">
-                            <h2 className="text-sm font-medium text-gray-400 flex items-center gap-1.5">
-                                <Clock className="w-4 h-4" /> Activity
-                            </h2>
-                            <button
-                                onClick={() => setActivityPanelOpen(false)}
-                                className="text-xs text-gray-500 hover:text-gray-300"
-                                title="Hide activity panel"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
-                        </div>
-                        <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 p-3 max-h-[400px] overflow-y-auto">
-                            {activitiesLoading ? (
-                                <div className="flex items-center justify-center py-6">
-                                    <RefreshCw className="w-4 h-4 text-gray-500 animate-spin" />
-                                </div>
-                            ) : walletActivities.length === 0 ? (
-                                <p className="text-gray-500 text-xs text-center py-4">No transactions yet.</p>
-                            ) : (
-                                <div className="space-y-1">
-                                    {walletActivities.slice(0, activityExpanded ? undefined : 8).map((activity, i) => (
-                                        <ActivityRowDetailed
-                                            key={activity.signature}
-                                            activity={activity}
-                                            formatCurrency={formatCurrency}
-                                            epochNumber={walletActivities.length - i}
-                                            oraclePrice={currentOraclePrice}
-                                        />
+                                <div className="flex items-center gap-2">
+                                    <label className="hidden md:flex items-center gap-1.5 text-[10px] text-gray-500 cursor-pointer">
+                                        <input type="checkbox" checked={showBaseline} onChange={(e) => setShowBaseline(e.target.checked)} className="w-3 h-3 rounded" />
+                                        Baseline
+                                    </label>
+                                    {(["1D", "1W", "1M", "ALL"] as const).map(r => (
+                                        <button key={r} onClick={() => setChartRange(r)} className={`px-2 py-0.5 rounded text-xs font-medium ${chartRange === r ? "bg-gray-700 text-white" : "text-gray-500 hover:text-gray-300"}`}>{r}</button>
                                     ))}
-                                    {!activityExpanded && walletActivities.length > 8 && (
-                                        <button
-                                            onClick={() => setActivityExpanded(true)}
-                                            className="text-xs text-gray-500 hover:text-gray-300 mt-2 w-full text-center py-2"
-                                        >
-                                            View all ({walletActivities.length})
-                                        </button>
-                                    )}
+                                    <button onClick={() => setChartExpanded(true)} className="ml-1 p-1.5 rounded-lg hover:bg-gray-700 text-gray-500 hover:text-white"><Maximize2 className="w-4 h-4" /></button>
+                                </div>
+                            </div>
+
+                            {/* Chart Body */}
+                            <div className="p-3" style={{ height: "220px" }}>
+                                <ChartContent chartData={chartData} chartMin={chartMin} chartMax={chartMax} minTime={minTime} timeRange={timeRange}
+                                    netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode} showBaseline={showBaseline}
+                                    hoveredEvent={hoveredEvent} setHoveredEvent={setHoveredEvent} premiumBars={premiumBars} />
+                            </div>
+
+                            {/* Premium by Epoch mini bar row */}
+                            {chartMode !== "premium" && (
+                                <div className="px-4 pb-3">
+                                    <div className="flex items-center gap-1 h-8">
+                                        <span className="text-[9px] text-gray-500 w-16">Premium</span>
+                                        <div className="flex-1 flex items-end gap-0.5 h-full">
+                                            {premiumBars.map((bar, i) => (
+                                                <div key={i} className="flex-1 bg-green-500/30 hover:bg-green-500/50 rounded-t transition-colors cursor-pointer group relative"
+                                                    style={{ height: `${Math.max(20, (bar.premium / Math.max(...premiumBars.map(b => b.premium))) * 100)}%` }}>
+                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[9px] text-white whitespace-nowrap z-10">
+                                                        Epoch #{bar.epoch} • {formatCurrency(bar.premium)} • {bar.yieldPercent.toFixed(2)}%
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
                     </div>
-                )}
+
+                    {/* Sidebar - Merged Overview + Next + Holdings */}
+                    <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 overflow-hidden">
+                        {/* Overview Section */}
+                        <div className="p-4 space-y-3">
+                            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Overview</h3>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex justify-between"><span className="text-gray-400">Value</span><span className="font-semibold text-white">{formatCurrency(stats.totalVaultValue)}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-400">Net Deposits</span><span className="text-gray-300">{formatCurrency(stats.netDeposits)}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-400">P&L</span><span className={stats.totalUnrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}>{formatCurrency(stats.totalUnrealizedPnl)} ({formatPercent(stats.performancePercent)})</span></div>
+                                <div className="flex justify-between"><span className="text-gray-400">Est. APY</span><span className="text-green-400">{stats.estApy.toFixed(1)}%</span></div>
+                            </div>
+                        </div>
+
+                        {/* Next Roll Section */}
+                        {nextRoll && (
+                            <div className="border-t border-gray-700/40 p-4 bg-blue-500/5">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-xs font-medium text-blue-400 uppercase tracking-wide flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> Next</h3>
+                                    <span className="text-xs font-bold text-white bg-blue-500/20 px-2 py-0.5 rounded-full">{nextRoll.nextRollIn}</span>
+                                </div>
+                                <div className="space-y-1.5 text-sm">
+                                    <div className="flex justify-between"><span className="text-gray-400">Est. Distribution</span><span className="text-green-400">{formatCurrency(stats.totalAccrued)}</span></div>
+                                    <div className="flex justify-between"><span className="text-gray-400">Withdraw Unlock</span><span className="text-gray-300">{nextRoll.withdrawUnlockIn}</span></div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Holdings Section */}
+                        {positions.length > 1 && (
+                            <div className="border-t border-gray-700/40 p-4">
+                                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Holdings</h3>
+                                <div className="space-y-1.5">
+                                    {positions.map(p => (
+                                        <div key={p.vaultId} className="flex items-center justify-between text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <img src={VAULT_METADATA[p.vaultId].logo} alt="" className="w-4 h-4 rounded-full" />
+                                                <span className="text-white">{p.symbol}</span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-gray-300">{formatCurrency(p.sharesUsd)}</span>
+                                                <span className="text-gray-500 w-12 text-right">{p.allocation.toFixed(0)}%</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {positions.length === 1 && (
+                            <div className="border-t border-gray-700/40 p-4 text-center">
+                                <span className="text-sm text-gray-400">{positions[0].symbol}</span>
+                                <span className="text-xs text-gray-500 ml-2">100%</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Positions + Activity Side by Side */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    {/* Positions - 2/3 width (primary work surface) */}
+                    <div className={activityPanelOpen ? "lg:col-span-2" : "lg:col-span-3"}>
+                        <div className="flex items-center justify-between mb-2">
+                            <h2 className="text-sm font-medium text-gray-400 flex items-center gap-1.5">
+                                <PieChart className="w-4 h-4" /> Positions
+                            </h2>
+                            {!activityPanelOpen && (
+                                <button
+                                    onClick={() => setActivityPanelOpen(true)}
+                                    className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1"
+                                >
+                                    <Clock className="w-3 h-3" /> Show Activity
+                                </button>
+                            )}
+                        </div>
+                        <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 divide-y divide-gray-700/40">
+                            {positions.map((position) => (
+                                <PositionRow
+                                    key={position.vaultId}
+                                    position={position}
+                                    meta={VAULT_METADATA[position.vaultId]}
+                                    formatCurrency={formatCurrency}
+                                    formatPercent={formatPercent}
+                                    openMenu={openMenu}
+                                    setOpenMenu={setOpenMenu}
+                                    onManage={setManagingPosition}
+                                />
+                            ))}
+                        </div>
+
+                        {/* P&L Breakdown - Expandable under positions */}
+                        <div className="mt-3">
+                            <button
+                                onClick={() => setShowPnlBreakdown(!showPnlBreakdown)}
+                                className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                            >
+                                <ChevronRight className={`w-3 h-3 transition-transform ${showPnlBreakdown ? "rotate-90" : ""}`} />
+                                What drove your P&L?
+                            </button>
+                            {showPnlBreakdown && (
+                                <div className="mt-2 bg-gray-800/40 rounded-xl border border-gray-700/40 p-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                        <div>
+                                            <p className="text-gray-500 text-xs mb-1">Underlying Move</p>
+                                            <p className={stats.breakdown.underlyingMoveImpact >= 0 ? "text-green-400" : "text-red-400"}>
+                                                {formatCurrency(stats.breakdown.underlyingMoveImpact)}
+                                            </p>
+                                            <p className="text-[10px] text-gray-600">NVDAx spot change</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-500 text-xs mb-1">Premium Earned</p>
+                                            <p className="text-green-400">{formatCurrency(stats.breakdown.premiumEarned)}</p>
+                                            <p className="text-[10px] text-gray-600">Realized + accrued</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-500 text-xs mb-1">Option Overlay</p>
+                                            <p className={stats.breakdown.overlayImpact >= 0 ? "text-blue-400" : "text-orange-400"}>
+                                                {formatCurrency(stats.breakdown.overlayImpact)}
+                                            </p>
+                                            <p className="text-[10px] text-gray-600">Cap/assignment</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-500 text-xs mb-1">Fees</p>
+                                            <p className="text-red-400">{formatCurrency(stats.breakdown.fees)}</p>
+                                            <p className="text-[10px] text-gray-600">Mgmt + performance</p>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-600 mt-3 pt-2 border-t border-gray-700/40">
+                                        * Vault P&L = Current NAV − Net Deposits. Breakdown is estimated from strategy model.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Activity Panel - 1/3 width (collapsible sidebar) */}
+                    {activityPanelOpen && (
+                        <div className="lg:col-span-1">
+                            <div className="flex items-center justify-between mb-2">
+                                <h2 className="text-sm font-medium text-gray-400 flex items-center gap-1.5">
+                                    <Clock className="w-4 h-4" /> Activity
+                                </h2>
+                                <button
+                                    onClick={() => setActivityPanelOpen(false)}
+                                    className="text-xs text-gray-500 hover:text-gray-300"
+                                    title="Hide activity panel"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 p-3 max-h-[400px] overflow-y-auto">
+                                {activitiesLoading ? (
+                                    <div className="flex items-center justify-center py-6">
+                                        <RefreshCw className="w-4 h-4 text-gray-500 animate-spin" />
+                                    </div>
+                                ) : walletActivities.length === 0 ? (
+                                    <p className="text-gray-500 text-xs text-center py-4">No transactions yet.</p>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {walletActivities.slice(0, activityExpanded ? undefined : 8).map((activity, i) => (
+                                            <ActivityRowDetailed
+                                                key={activity.signature}
+                                                activity={activity}
+                                                formatCurrency={formatCurrency}
+                                                epochNumber={walletActivities.length - i}
+                                                oraclePrice={currentOraclePrice}
+                                            />
+                                        ))}
+                                        {!activityExpanded && walletActivities.length > 8 && (
+                                            <button
+                                                onClick={() => setActivityExpanded(true)}
+                                                className="text-xs text-gray-500 hover:text-gray-300 mt-2 w-full text-center py-2"
+                                            >
+                                                View all ({walletActivities.length})
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+
+            {/* Manage Position Modal */}
+            {
+                managingPosition && (
+                    <ManagePositionModal
+                        position={managingPosition}
+                        onClose={() => setManagingPosition(null)}
+                        oraclePrice={currentOraclePrice}
+                    />
+                )
+            }
+        </>
     );
 }
 
@@ -695,7 +1048,7 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
     };
 
     return (
-        <div className="relative h-full w-full">
+        <div className="relative h-full w-full overflow-hidden rounded-xl">
             <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <defs>
                     <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -703,31 +1056,36 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
                         <stop offset="70%" stopColor="rgb(59, 130, 246)" stopOpacity="0.05" />
                         <stop offset="100%" stopColor="rgb(59, 130, 246)" stopOpacity="0" />
                     </linearGradient>
+                    <clipPath id="chartClip">
+                        <rect x="0" y="0" width="100" height="100" />
+                    </clipPath>
                 </defs>
 
-                {/* Grid */}
-                {[25, 50, 75].map(y => (
-                    <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
-                ))}
+                <g clipPath="url(#chartClip)">
+                    {/* Grid */}
+                    {[25, 50, 75].map(y => (
+                        <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                    ))}
 
-                {/* Net Deposits baseline */}
-                {depositsY >= 0 && depositsY <= 100 && (
-                    <line x1="0" y1={depositsY} x2="100" y2={depositsY} stroke="rgba(250, 200, 100, 0.5)" strokeWidth="1" strokeDasharray="4,4" vectorEffect="non-scaling-stroke" />
-                )}
+                    {/* Net Deposits baseline */}
+                    {depositsY >= 0 && depositsY <= 100 && (
+                        <line x1="0" y1={depositsY} x2="100" y2={depositsY} stroke="rgba(250, 200, 100, 0.5)" strokeWidth="1" strokeDasharray="4,4" vectorEffect="non-scaling-stroke" />
+                    )}
 
-                {/* Area */}
-                <path d={`M 0 100 ${chartData.map(d => {
-                    const x = ((d.date.getTime() - minTime) / timeRange) * 100;
-                    const y = 100 - ((d.value - paddedMin) / displayRange) * 100;
-                    return `L ${x} ${Math.max(0, Math.min(100, y))}`;
-                }).join(' ')} L 100 100 Z`} fill="url(#areaGrad)" />
+                    {/* Area */}
+                    <path d={`M 0 100 ${chartData.map(d => {
+                        const x = Math.max(0, Math.min(100, ((d.date.getTime() - minTime) / timeRange) * 100));
+                        const y = Math.max(0, Math.min(100, 100 - ((d.value - paddedMin) / displayRange) * 100));
+                        return `L ${x} ${y}`;
+                    }).join(' ')} L 100 100 Z`} fill="url(#areaGrad)" />
 
-                {/* Line */}
-                <path d={`M ${chartData.map(d => {
-                    const x = ((d.date.getTime() - minTime) / timeRange) * 100;
-                    const y = 100 - ((d.value - paddedMin) / displayRange) * 100;
-                    return `${x} ${Math.max(0, Math.min(100, y))}`;
-                }).join(' L ')}`} fill="none" stroke="rgb(59, 130, 246)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                    {/* Line */}
+                    <path d={`M ${chartData.map(d => {
+                        const x = Math.max(0, Math.min(100, ((d.date.getTime() - minTime) / timeRange) * 100));
+                        const y = Math.max(0, Math.min(100, 100 - ((d.value - paddedMin) / displayRange) * 100));
+                        return `${x} ${y}`;
+                    }).join(' L ')}`} fill="none" stroke="rgb(59, 130, 246)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                </g>
             </svg>
 
             {/* Event markers */}
@@ -741,7 +1099,7 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
                         {isHovered && (
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
                                 <div className="font-medium">{cfg.label}</div>
-                                <div>{chartMode === "performance" ? `${m.value.toFixed(2)}` : formatCurrency(m.value)}</div>
+                                <div>{chartMode === "performance" ? `${(m.value - 100).toFixed(2)}%` : formatCurrency(m.value)}</div>
                                 <div className="text-gray-500">{m.date.toLocaleString()}</div>
                             </div>
                         )}
@@ -751,10 +1109,10 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
 
             {/* Labels */}
             <div className="absolute top-1 right-1 text-[9px] text-gray-500 bg-gray-900/50 px-1 py-0.5 rounded">
-                {chartMode === "performance" ? `${chartMax.toFixed(1)}` : formatCurrency(chartMax)}
+                {chartMode === "performance" ? `${(chartMax - 100).toFixed(1)}%` : formatCurrency(chartMax)}
             </div>
             <div className="absolute bottom-5 right-1 text-[9px] text-gray-500 bg-gray-900/50 px-1 py-0.5 rounded">
-                {chartMode === "performance" ? `${chartMin.toFixed(1)}` : formatCurrency(chartMin)}
+                {chartMode === "performance" ? `${(chartMin - 100).toFixed(1)}%` : formatCurrency(chartMin)}
             </div>
             {depositsY >= 10 && depositsY <= 90 && (
                 <div className="absolute left-1 text-[8px] text-yellow-400/60" style={{ top: `${depositsY}%`, transform: "translateY(-50%)" }}>Net Deposits</div>
@@ -768,28 +1126,26 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
 }
 
 // Position Row - With strategy line and better actions
-function PositionRow({ position, meta, formatCurrency, formatPercent, openMenu, setOpenMenu }: {
+function PositionRow({ position, meta, formatCurrency, formatPercent, openMenu, setOpenMenu, onManage }: {
     position: Position; meta: typeof VAULT_METADATA[string];
     formatCurrency: (v: number) => string; formatPercent: (v: number, showSign?: boolean) => string;
     openMenu: string | null; setOpenMenu: (id: string | null) => void;
+    onManage: (position: Position) => void;
 }) {
     return (
-        <div className="px-4 py-3 hover:bg-gray-700/20 transition-colors">
+        <div className="px-4 py-3">
             <div className="flex items-center justify-between">
                 <Link href={`/v2/earn/${position.vaultId}`} className="flex items-center gap-3 flex-1">
                     <div className="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden border-2" style={{ borderColor: meta.accentColor }}>
                         <img src={meta.logo} alt={meta.symbol} className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className="font-medium text-white text-sm">{meta.symbol}</h3>
-                        {/* Strategy line */}
-                        <p className="text-[10px] text-gray-500">
-                            Covered Call ({meta.tier}) • Strike: {meta.strikeOtm}% OTM • Cap: +{meta.maxCap}%
-                        </p>
+                        <p className="font-semibold text-white text-sm">{meta.name}</p>
+                        <p className="text-[10px] text-gray-500">{meta.symbol} • {position.vaultApy.toFixed(1)}% APY</p>
                     </div>
                 </Link>
 
-                <div className="hidden md:flex items-center gap-6 text-xs">
+                <div className="hidden md:flex items-center gap-6 flex-shrink-0 text-[10px]">
                     <div className="text-center w-20">
                         <p className="text-gray-500">Accrued</p>
                         <p className="text-green-400">{formatCurrency(position.accruedPremium)}</p>
@@ -810,12 +1166,18 @@ function PositionRow({ position, meta, formatCurrency, formatPercent, openMenu, 
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-1.5">
-                        <Link href={`/v2/earn/${position.vaultId}`} className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-xs font-medium rounded-lg transition-colors flex items-center gap-1">
+                        <button
+                            onClick={() => onManage(position)}
+                            className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
+                        >
                             <Settings className="w-3 h-3" /> Manage
-                        </Link>
-                        <Link href={`/v2/earn/${position.vaultId}`} className="px-2.5 py-1.5 border border-gray-600 hover:border-gray-500 text-gray-400 hover:text-white text-xs rounded-lg transition-colors">
+                        </button>
+                        <button
+                            onClick={() => onManage(position)}
+                            className="px-2.5 py-1.5 border border-gray-600 hover:border-gray-500 text-gray-400 hover:text-white text-xs rounded-lg transition-colors"
+                        >
                             <Plus className="w-3.5 h-3.5" />
-                        </Link>
+                        </button>
                         <div className="relative">
                             <button onClick={() => setOpenMenu(openMenu === position.vaultId ? null : position.vaultId)}
                                 className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-gray-700 rounded transition-colors">
@@ -857,7 +1219,7 @@ function ActivityRowDetailed({ activity, formatCurrency, epochNumber, oraclePric
 
     return (
         <a href={`https://explorer.solana.com/tx/${activity.signature}?cluster=devnet`} target="_blank" rel="noopener noreferrer"
-            className="flex items-start justify-between text-xs py-2 px-2 -mx-2 rounded hover:bg-gray-700/40 transition-colors group">
+            className="flex items-start justify-between text-xs py-2 px-2 -mx-2 rounded transition-colors group">
             <div className="flex-1">
                 <div className="flex items-center gap-2">
                     <span className={`font-medium ${c.color}`}>{c.label}</span>

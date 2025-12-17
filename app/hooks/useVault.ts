@@ -16,6 +16,8 @@ import {
     getUserWithdrawalRequest,
 } from "../lib/vault-sdk";
 
+// Use custom RPC if set, otherwise use a more reliable devnet endpoint
+// The default api.devnet.solana.com is often rate-limited
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://api.devnet.solana.com";
 
 export type TransactionStatus = "idle" | "building" | "signing" | "confirming" | "success" | "error";

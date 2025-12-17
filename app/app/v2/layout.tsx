@@ -47,9 +47,9 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <div className="min-h-screen flex flex-col bg-background">
+        <div className="h-screen flex flex-col bg-background overflow-hidden">
             {/* Top Header - Clean, minimal */}
-            <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
+            <header className="flex-shrink-0 border-b border-border bg-background/80 backdrop-blur-md z-50">
                 <div className="h-14 flex justify-between items-center px-6">
                     <div className="flex items-center gap-6">
                         <Link href="/v2" className="flex items-center gap-3">
@@ -95,11 +95,11 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
                 </div>
             </header>
 
-            <div className="flex flex-1">
-                {/* Left Sidebar - Collapsible */}
-                <aside className={`${sidebarCollapsed ? 'w-16' : 'w-52'} border-r border-border bg-background/50 transition-all duration-200 flex flex-col`}>
+            <div className="flex flex-1 min-h-0">
+                {/* Left Sidebar - fills remaining height */}
+                <aside className={`${sidebarCollapsed ? 'w-16' : 'w-52'} flex-shrink-0 border-r border-border bg-background/50 transition-all duration-200 flex flex-col`}>
                     {/* Sidebar Header Row */}
-                    <div className={`h-11 flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-end'} px-3 border-b border-border/50`}>
+                    <div className={`h-11 flex-shrink-0 flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-end'} px-3 border-b border-border/50`}>
                         <button
                             onClick={toggleSidebar}
                             className="p-1.5 rounded-lg hover:bg-secondary/50 text-muted-foreground"
@@ -111,8 +111,8 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
                         </button>
                     </div>
 
-                    {/* Core Nav Items */}
-                    <nav className="flex-1 px-2 py-3 space-y-1">
+                    {/* Core Nav Items - scrolls if needed */}
+                    <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto min-h-0">
                         {coreNavItems.map((item) => {
                             const Icon = item.icon;
                             return (
@@ -133,10 +133,10 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
                     </nav>
 
                     {/* Divider */}
-                    <div className="mx-3 border-t border-border/50" />
+                    <div className="mx-3 border-t border-border/50 flex-shrink-0" />
 
-                    {/* Utility Nav Items (bottom) */}
-                    <nav className="px-2 py-3 space-y-1">
+                    {/* Utility Nav Items - pinned at bottom */}
+                    <nav className="px-2 py-3 space-y-1 flex-shrink-0">
                         {utilityNavItems.map((item) => {
                             const Icon = item.icon;
                             return (

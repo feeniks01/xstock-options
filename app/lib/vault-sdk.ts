@@ -119,59 +119,75 @@ export function getVaultProgram(provider: AnchorProvider): any {
 }
 
 /**
- * Fetch vault data from on-chain
+ * Fetch vault data from on-chain with retry logic
  */
 export async function fetchVaultData(
     connection: Connection,
-    assetId: string
+    assetId: string,
+    retries = 3
 ): Promise<VaultData | null> {
-    try {
-        const [vaultPda] = deriveVaultPda(assetId);
+    const [vaultPda] = deriveVaultPda(assetId);
 
-        // Create a dummy wallet for read-only operations
-        const dummyWallet = {
-            publicKey: PublicKey.default,
-            signTransaction: async () => { throw new Error("Not implemented"); },
-            signAllTransactions: async () => { throw new Error("Not implemented"); },
-        } as unknown as Wallet;
+    // Create a dummy wallet for read-only operations
+    const dummyWallet = {
+        publicKey: PublicKey.default,
+        signTransaction: async () => { throw new Error("Not implemented"); },
+        signAllTransactions: async () => { throw new Error("Not implemented"); },
+    } as unknown as Wallet;
 
-        const provider = new AnchorProvider(connection, dummyWallet, {
-            commitment: "confirmed",
-        });
+    const provider = new AnchorProvider(connection, dummyWallet, {
+        commitment: "confirmed",
+    });
 
-        const program = getVaultProgram(provider);
-        const vaultAccount = await program.account.vault.fetch(vaultPda);
+    const program = getVaultProgram(provider);
 
-        // Calculate share price (totalAssets / totalShares)
-        const totalAssets = Number(vaultAccount.totalAssets);
-        const totalShares = Number(vaultAccount.totalShares);
-        const sharePrice = totalShares > 0 ? totalAssets / totalShares : 1.0;
+    // Retry logic with exponential backoff
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            const vaultAccount = await program.account.vault.fetch(vaultPda);
 
-        // Mock APY for now - will calculate from historical data
-        const apy = 12.5;
-        const tvl = totalAssets / 1e6; // Assuming 6 decimals
+            // Calculate share price (totalAssets / totalShares)
+            const totalAssets = Number(vaultAccount.totalAssets);
+            const totalShares = Number(vaultAccount.totalShares);
+            const sharePrice = totalShares > 0 ? totalAssets / totalShares : 1.0;
 
-        return {
-            publicKey: vaultPda.toBase58(),
-            symbol: assetId,
-            authority: vaultAccount.authority.toBase58(),
-            underlyingMint: vaultAccount.underlyingMint.toBase58(),
-            shareMint: vaultAccount.shareMint.toBase58(),
-            vaultTokenAccount: vaultAccount.vaultTokenAccount.toBase58(),
-            epoch: Number(vaultAccount.epoch),
-            totalAssets: vaultAccount.totalAssets.toString(),
-            totalShares: vaultAccount.totalShares.toString(),
-            sharePrice,
-            apy,
-            tvl,
-            utilizationCapBps: Number(vaultAccount.utilizationCapBps),
-            pendingWithdrawals: vaultAccount.pendingWithdrawals.toString(),
-        };
-    } catch (error) {
-        console.error("Error fetching vault data:", error);
-        return null;
+            // Mock APY for now - will calculate from historical data
+            const apy = 12.5;
+            const tvl = totalAssets / 1e6; // Assuming 6 decimals
+
+            return {
+                publicKey: vaultPda.toBase58(),
+                symbol: assetId,
+                authority: vaultAccount.authority.toBase58(),
+                underlyingMint: vaultAccount.underlyingMint.toBase58(),
+                shareMint: vaultAccount.shareMint.toBase58(),
+                vaultTokenAccount: vaultAccount.vaultTokenAccount.toBase58(),
+                epoch: Number(vaultAccount.epoch),
+                totalAssets: vaultAccount.totalAssets.toString(),
+                totalShares: vaultAccount.totalShares.toString(),
+                sharePrice,
+                apy,
+                tvl,
+                utilizationCapBps: Number(vaultAccount.utilizationCapBps),
+                pendingWithdrawals: vaultAccount.pendingWithdrawals.toString(),
+            };
+        } catch (error) {
+            lastError = error as Error;
+            console.warn(`Vault fetch attempt ${attempt + 1}/${retries} failed:`, error);
+
+            // Wait before retry with exponential backoff (500ms, 1s, 2s)
+            if (attempt < retries - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+            }
+        }
     }
+
+    // All retries failed
+    console.error("All vault fetch attempts failed:", lastError);
+    return null;
 }
+
 
 /**
  * Build a deposit transaction
