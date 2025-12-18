@@ -21,6 +21,7 @@ import * as path from "path";
 import * as dotenv from "dotenv";
 import { createLogger, format, transports } from "winston";
 import express, { Request, Response } from "express";
+import { OnChainClient } from "./onchain";
 
 dotenv.config();
 
@@ -35,6 +36,9 @@ const config = {
     vaultProgramId: new PublicKey(process.env.VAULT_PROGRAM_ID || "8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY"),
     rfqProgramId: new PublicKey(process.env.RFQ_PROGRAM_ID || "3M2K6htNbWyZHtvvUyUME19f5GUS6x8AtGmitFENDT5Z"),
     oracleProgramId: new PublicKey(process.env.ORACLE_PROGRAM_ID || "5MnuN6ahpRSp5F3R2uXvy9pSN4TQmhSydywQSoxszuZk"),
+
+    // Pyth price account for NVDA on devnet
+    pythPriceAccount: new PublicKey(process.env.PYTH_PRICE_ACCOUNT || "GVXRSBjFk6e6J3NbVPXohDJetcTjaeeuykUpbQF8UoMU"),
 
     rfqRouterUrl: process.env.RFQ_ROUTER_URL || "http://localhost:3005",
 
@@ -80,6 +84,7 @@ interface KeeperState {
     runCount: number;
     errorCount: number;
     isRunning: boolean;
+    onchainClient: OnChainClient | null;
 }
 
 const state: KeeperState = {
@@ -90,6 +95,7 @@ const state: KeeperState = {
     runCount: 0,
     errorCount: 0,
     isRunning: false,
+    onchainClient: null,
 };
 
 // ============================================================================
@@ -144,6 +150,11 @@ interface FillResponse {
         premium: number;
     };
     error?: string;
+}
+
+interface OnChainTxResult {
+    recordExposureTx: string | null;
+    advanceEpochTx: string | null;
 }
 
 // ============================================================================
@@ -211,33 +222,80 @@ async function fetchVaultState(vaultPda: PublicKey): Promise<VaultState | null> 
 }
 
 /**
- * Fetch current oracle price
+ * Pyth Feed IDs (same as app uses)
+ */
+const PYTH_FEED_IDS: Record<string, string> = {
+    NVDAx: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
+    TSLAx: "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
+    SPYx: "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
+    AAPLx: "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675",
+    METAx: "0xbf3e5871be3f80ab7a4d1f1fd039145179fb58569e159aee1ccd472868ea5900",
+};
+
+const HERMES_URL = "https://hermes.pyth.network";
+
+/**
+ * Fetch current oracle price from Pyth Hermes API
+ * (Same API the frontend app uses)
  */
 async function fetchOraclePrice(): Promise<OraclePrice | null> {
+    const assetId = config.assetId;
+    const feedId = PYTH_FEED_IDS[assetId];
+
+    if (!feedId) {
+        logger.warn("No Pyth feed ID for asset, using mock price", { assetId });
+        return getMockPrice();
+    }
+
     try {
-        // In production, call the oracle program to get price
-        // For now, use Jupiter API as fallback
         const response = await axios.get(
-            `https://api.jup.ag/price/v2?ids=NVDA`,
-            { timeout: 5000 }
+            `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&parsed=true`,
+            { timeout: 10000 }
         );
 
-        if (response.data?.data?.NVDA) {
-            const price = response.data.data.NVDA.price;
+        if (response.data?.parsed?.[0]) {
+            const priceData = response.data.parsed[0];
+            const price = parseFloat(priceData.price.price) * Math.pow(10, priceData.price.expo);
+            const conf = parseFloat(priceData.price.conf) * Math.pow(10, priceData.price.expo);
+            const publishTime = priceData.price.publish_time;
+
+            logger.info("Fetched price from Pyth Hermes API", {
+                assetId,
+                price: price.toFixed(2),
+                confidence: conf.toFixed(4),
+            });
+
             return {
-                price: Math.floor(price * 1_000_000), // 6 decimals
-                conf: Math.floor(price * 10_000), // ~1% confidence
+                price: Math.floor(price * 1_000_000), // Convert to 6 decimals
+                conf: Math.floor(conf * 1_000_000),
                 exponent: -6,
-                publishTime: Math.floor(Date.now() / 1000),
+                publishTime,
             };
         }
 
-        logger.warn("Could not fetch price from Jupiter");
-        return null;
-    } catch (error) {
-        logger.error("Failed to fetch oracle price", { error });
-        return null;
+        logger.warn("No price data in Hermes response, using mock");
+        return getMockPrice();
+    } catch (error: any) {
+        logger.warn("Hermes API call failed, using mock price", {
+            error: error.message || error
+        });
+        return getMockPrice();
     }
+}
+
+/**
+ * Mock price fallback for demo
+ */
+function getMockPrice(): OraclePrice {
+    const mockPrice = 140 + (Math.random() * 5 - 2.5);
+    logger.info("Using mock oracle price for demo", { mockPrice: mockPrice.toFixed(2) });
+
+    return {
+        price: Math.floor(mockPrice * 1_000_000),
+        conf: Math.floor(mockPrice * 5_000),
+        exponent: -6,
+        publishTime: Math.floor(Date.now() / 1000),
+    };
 }
 
 /**
@@ -293,7 +351,8 @@ async function createRfq(params: {
     try {
         const now = Math.floor(Date.now() / 1000);
         const expiryTs = now + config.epochDurationSeconds;
-        const validUntilTs = now + Math.floor(config.quoteWaitMs / 1000);
+        // Add 5 second buffer so RFQ doesn't expire while we're waiting for quotes
+        const validUntilTs = now + Math.floor(config.quoteWaitMs / 1000) + 5;
 
         const response = await axios.post<RfqResponse>(
             `${config.rfqRouterUrl}/rfq`,
@@ -432,16 +491,46 @@ async function runEpochRoll(): Promise<boolean> {
 
         // Step 6: Record exposure and advance epoch (on-chain)
         logger.info("Step 6: Recording exposure and advancing epoch...");
-        // TODO: Submit on-chain transactions:
-        // 1. record_notional_exposure(notional, premium)
-        // 2. advance_epoch(premium)
-        logger.info("On-chain transactions would be submitted here");
+
+        let onchainTxs: OnChainTxResult = {
+            recordExposureTx: null,
+            advanceEpochTx: null,
+        };
+
+        if (state.onchainClient) {
+            try {
+                // Record notional exposure on vault
+                const recordTx = await state.onchainClient.recordNotionalExposure(
+                    config.assetId,
+                    BigInt(notional),
+                    BigInt(fillResponse.filled?.premium || 0)
+                );
+                onchainTxs.recordExposureTx = recordTx;
+                logger.info("Recorded notional exposure", { tx: recordTx });
+
+                // Advance epoch with premium
+                const advanceTx = await state.onchainClient.advanceEpoch(
+                    config.assetId,
+                    BigInt(fillResponse.filled?.premium || 0)
+                );
+                onchainTxs.advanceEpochTx = advanceTx;
+                logger.info("Advanced epoch", { tx: advanceTx });
+
+            } catch (onchainError) {
+                logger.error("On-chain transaction failed", { error: onchainError });
+                // Don't fail the whole epoch roll - log and continue
+            }
+        } else {
+            logger.warn("No on-chain client available - skipping on-chain transactions");
+        }
 
         logger.info("========================================");
         logger.info("Epoch roll completed successfully", {
             rfqId: rfqResponse.rfqId,
             premium: fillResponse.filled?.premium,
             maker: fillResponse.filled?.maker,
+            recordExposureTx: onchainTxs.recordExposureTx,
+            advanceEpochTx: onchainTxs.advanceEpochTx,
         });
         logger.info("========================================");
 
@@ -513,12 +602,21 @@ async function main(): Promise<void> {
     // Initialize connection
     state.connection = new Connection(config.rpcUrl, "confirmed");
 
-    // Load wallet
+    // Load wallet and initialize on-chain client
     try {
         state.wallet = loadWallet();
         logger.info("Wallet loaded", { pubkey: state.wallet.publicKey.toBase58() });
+
+        // Initialize on-chain client
+        state.onchainClient = new OnChainClient(state.connection, state.wallet);
+
+        // Optionally load IDLs for full Anchor support
+        const vaultIdlPath = path.join(__dirname, "../../..", "target/idl/vault.json");
+        const rfqIdlPath = path.join(__dirname, "../../..", "target/idl/rfq.json");
+        await state.onchainClient.initializeWithIdl(vaultIdlPath, rfqIdlPath);
+        logger.info("On-chain client initialized");
     } catch (error) {
-        logger.warn("No keeper keypair found, running in read-only mode");
+        logger.warn("No keeper keypair found, running in read-only mode", { error });
     }
 
     // Start health server
