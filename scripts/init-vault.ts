@@ -12,7 +12,7 @@ const VAULT_PROGRAM_ID = new PublicKey(
 );
 
 // V1 Mock Token Mints (already created on devnet)
-const V1_MOCK_NVDAX_MINT = new PublicKey("H9AqpTYHCGCvJ12YxRX5goGNTcG9VAai1hgQHzVf68vT");
+const V1_MOCK_NVDAX_MINT = new PublicKey("D6wYCkoFg1PyQn1fX21Vv2Z1h1M5oSSK26AHtRvahdTB");
 const V1_MOCK_USDC_MINT = new PublicKey("EnDeaApTGfsWxMwLbmJsTh1gSLVR8gJG26dqoDjfPVag");
 
 async function main() {

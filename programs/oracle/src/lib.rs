@@ -5,6 +5,13 @@ declare_id!("5MnuN6ahpRSp5F3R2uXvy9pSN4TQmhSydywQSoxszuZk");
 // Maximum age of price update in seconds (5 minutes)
 pub const MAX_PRICE_AGE_SECS: i64 = 300;
 
+// Confidence thresholds (basis points)
+// OK: conf/price < 1% (100 bps)
+// DEGRADED: conf/price 1-5% (100-500 bps)  
+// DISPUTED: conf/price > 5% or stale
+pub const CONFIDENCE_OK_THRESHOLD_BPS: u64 = 100;
+pub const CONFIDENCE_DEGRADED_THRESHOLD_BPS: u64 = 500;
+
 /// Pyth price structure (matching on-chain format)
 /// Reference: https://docs.pyth.network/price-feeds/pythnet-price-feeds/on-chain-data
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -85,15 +92,37 @@ pub mod oracle {
         let price = parse_pyth_price(&pyth_data)
             .ok_or(OracleError::InvalidPriceData)?;
 
-        // Check staleness
+        // Check staleness - set disputed if stale but don't fail
         let age = clock.unix_timestamp.saturating_sub(price.publish_time);
-        require!(age <= MAX_PRICE_AGE_SECS, OracleError::StalePrice);
+        let is_stale = age > MAX_PRICE_AGE_SECS;
+
+        // Calculate confidence percentage in basis points: (conf / price) * 10000
+        let confidence_bps = if price.price > 0 {
+            ((price.conf as u128)
+                .checked_mul(10000)
+                .unwrap_or(u128::MAX)
+                .checked_div(price.price.unsigned_abs() as u128)
+                .unwrap_or(u64::MAX as u128)) as u64
+        } else {
+            u64::MAX // Invalid price means max uncertainty
+        };
+
+        // Determine oracle status
+        let status = if is_stale || confidence_bps > CONFIDENCE_DEGRADED_THRESHOLD_BPS {
+            OracleStatus::Disputed
+        } else if confidence_bps > CONFIDENCE_OK_THRESHOLD_BPS {
+            OracleStatus::Degraded
+        } else {
+            OracleStatus::Ok
+        };
 
         let result = PriceResult {
             price: price.price,
             conf: price.conf,
             exponent: price.expo,
             publish_time: price.publish_time,
+            status,
+            confidence_bps: confidence_bps.min(u16::MAX as u64) as u16,
         };
 
         emit!(PriceRead {
@@ -102,6 +131,8 @@ pub mod oracle {
             conf: result.conf,
             exponent: result.exponent,
             publish_time: result.publish_time,
+            status: result.status,
+            confidence_bps: result.confidence_bps,
         });
 
         Ok(result)
@@ -135,12 +166,22 @@ impl AssetConfig {
     pub const LEN: usize = 8 + 32 + 4 + Self::MAX_ASSET_ID_LEN + 32 + 1;
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OracleStatus {
+    #[default]
+    Ok,       // Confidence < 1%, fresh price
+    Degraded, // Confidence 1-5%
+    Disputed, // Confidence > 5% or stale
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
 pub struct PriceResult {
     pub price: i64,
     pub conf: u64,
     pub exponent: i32,
     pub publish_time: i64,
+    pub status: OracleStatus,
+    pub confidence_bps: u16,  // Confidence as basis points (conf/price * 10000)
 }
 
 // ============================================================================
@@ -195,6 +236,8 @@ pub struct PriceRead {
     pub conf: u64,
     pub exponent: i32,
     pub publish_time: i64,
+    pub status: OracleStatus,
+    pub confidence_bps: u16,
 }
 
 // ============================================================================

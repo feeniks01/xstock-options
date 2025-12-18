@@ -71,14 +71,7 @@ describe("vault", () => {
         const tx = await program.methods
             .initializeVault(assetId, utilizationCapBps)
             .accounts({
-                vault: vaultPda,
                 underlyingMint: underlyingMint,
-                shareMint: shareMintPda,
-                vaultTokenAccount: vaultTokenAccountPda,
-                authority: authority.publicKey,
-                systemProgram: anchor.web3.SystemProgram.programId,
-                tokenProgram: TOKEN_PROGRAM_ID,
-                rent: anchor.web3.SYSVAR_RENT_PUBKEY,
             })
             .rpc();
 
@@ -106,14 +99,13 @@ describe("vault", () => {
 
         const tx = await program.methods
             .deposit(depositAmount)
-            .accounts({
+            .accountsPartial({
                 vault: vaultPda,
                 shareMint: shareMintPda,
                 vaultTokenAccount: vaultTokenAccountPda,
                 userTokenAccount: userTokenAccount,
                 userShareAccount: userShareAccount,
                 user: authority.publicKey,
-                tokenProgram: TOKEN_PROGRAM_ID,
             })
             .rpc();
 
@@ -129,7 +121,7 @@ describe("vault", () => {
 
         const tx = await program.methods
             .advanceEpoch(premiumEarned)
-            .accounts({
+            .accountsPartial({
                 vault: vaultPda,
                 authority: authority.publicKey,
             })
@@ -153,12 +145,11 @@ describe("vault", () => {
 
         const tx = await program.methods
             .requestWithdrawal(sharesToWithdraw)
-            .accounts({
+            .accountsPartial({
                 vault: vaultPda,
                 withdrawalRequest: withdrawalPda,
                 userShareAccount: userShareAccount,
                 user: authority.publicKey,
-                systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
 

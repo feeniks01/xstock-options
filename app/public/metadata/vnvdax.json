@@ -1,0 +1,25 @@
+{
+    "name": "Mock vNVDAx",
+    "symbol": "vNVDAx",
+    "description": "Vault shares representing deposited NVDAx in the OptionsFi covered call vault. Earns yield from weekly option premiums.",
+    "image": "https://raw.githubusercontent.com/feeniks01/xstock-options/main/app/public/nvidiax_logo.png",
+    "external_url": "https://optionsfi.xyz",
+    "attributes": [
+        {
+            "trait_type": "Type",
+            "value": "Vault Share"
+        },
+        {
+            "trait_type": "Underlying",
+            "value": "NVDAx"
+        },
+        {
+            "trait_type": "Strategy",
+            "value": "Covered Call"
+        },
+        {
+            "trait_type": "Network",
+            "value": "Solana Devnet"
+        }
+    ]
+}

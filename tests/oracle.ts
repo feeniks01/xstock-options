@@ -27,11 +27,6 @@ describe("oracle (Pyth integration)", () => {
     it("initializes an asset config", async () => {
         const tx = await program.methods
             .initializeAsset(assetId, mockPythPriceAccount)
-            .accounts({
-                assetConfig: assetConfigPda,
-                authority: authority.publicKey,
-                systemProgram: anchor.web3.SystemProgram.programId,
-            })
             .rpc();
 
         console.log("Initialize asset tx:", tx);
@@ -49,7 +44,6 @@ describe("oracle (Pyth integration)", () => {
             .updatePythAccount(newPythAccount)
             .accounts({
                 assetConfig: assetConfigPda,
-                authority: authority.publicKey,
             })
             .rpc();
 
@@ -66,7 +60,7 @@ describe("oracle (Pyth integration)", () => {
         try {
             await program.methods
                 .updatePythAccount(newPythAccount)
-                .accounts({
+                .accountsPartial({
                     assetConfig: assetConfigPda,
                     authority: unauthorizedUser.publicKey,
                 })

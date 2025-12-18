@@ -36,8 +36,8 @@ pub mod rfq {
         option_type: OptionType,
         expiry_ts: i64,
         strike: u64,
-        size: u64,
-        premium_floor: u64,
+        notional_tokens: u64,          // Token exposure (fractional options)
+        premium_floor_per_token_bps: u32, // Min premium rate in basis points
         valid_until_ts: i64,
         settlement: SettlementType,
         oracle_price: u64,
@@ -56,8 +56,8 @@ pub mod rfq {
         rfq.option_type = option_type;
         rfq.expiry_ts = expiry_ts;
         rfq.strike = strike;
-        rfq.size = size;
-        rfq.premium_floor = premium_floor;
+        rfq.notional_tokens = notional_tokens;
+        rfq.premium_floor_per_token_bps = premium_floor_per_token_bps;
         rfq.valid_until_ts = valid_until_ts;
         rfq.settlement = settlement;
         rfq.oracle_price = oracle_price;
@@ -65,6 +65,7 @@ pub mod rfq {
         rfq.status = RfqStatus::Open;
         rfq.filled_by = Pubkey::default();
         rfq.filled_premium = 0;
+        rfq.filled_premium_per_token_bps = 0;
         rfq.created_at = clock.unix_timestamp;
         rfq.bump = ctx.bumps.rfq;
 
@@ -74,8 +75,8 @@ pub mod rfq {
             rfq_id: rfq.id,
             underlying,
             strike,
-            size,
-            premium_floor,
+            notional_tokens,
+            premium_floor_per_token_bps,
             valid_until_ts,
         });
 
@@ -83,7 +84,8 @@ pub mod rfq {
     }
 
     /// Fill an RFQ (called by maker)
-    pub fn fill_rfq(ctx: Context<FillRfq>, premium: u64) -> Result<()> {
+    /// premium_per_token_bps is the premium rate in basis points (e.g., 100 = 1%)
+    pub fn fill_rfq(ctx: Context<FillRfq>, premium_per_token_bps: u32) -> Result<()> {
         let rfq = &mut ctx.accounts.rfq;
         let maker_account = &mut ctx.accounts.maker_account;
         let clock = Clock::get()?;
@@ -96,7 +98,14 @@ pub mod rfq {
         require!(maker_account.is_active, RfqError::MakerNotActive);
         
         // Validate premium meets floor
-        require!(premium >= rfq.premium_floor, RfqError::PremiumBelowFloor);
+        require!(premium_per_token_bps >= rfq.premium_floor_per_token_bps, RfqError::PremiumBelowFloor);
+
+        // Calculate total premium: notional_tokens * rate / 10000
+        let total_premium = (rfq.notional_tokens as u128)
+            .checked_mul(premium_per_token_bps as u128)
+            .unwrap()
+            .checked_div(10000)
+            .unwrap() as u64;
 
         // Transfer premium from maker to RFQ creator (vault)
         token::transfer(
@@ -108,25 +117,27 @@ pub mod rfq {
                     authority: ctx.accounts.maker.to_account_info(),
                 },
             ),
-            premium,
+            total_premium,
         )?;
 
         // Update RFQ state
         rfq.status = RfqStatus::Filled;
         rfq.filled_by = ctx.accounts.maker.key();
-        rfq.filled_premium = premium;
+        rfq.filled_premium = total_premium;
+        rfq.filled_premium_per_token_bps = premium_per_token_bps;
 
         // Update maker stats
         maker_account.total_fills = maker_account.total_fills.checked_add(1).unwrap();
         maker_account.total_premium_paid = maker_account
             .total_premium_paid
-            .checked_add(premium)
+            .checked_add(total_premium)
             .unwrap();
 
         emit!(RfqFilledEvent {
             rfq_id: rfq.id,
             maker: ctx.accounts.maker.key(),
-            premium,
+            premium: total_premium,
+            premium_per_token_bps,
         });
 
         Ok(())
@@ -189,15 +200,16 @@ pub struct Rfq {
     pub option_type: OptionType,
     pub expiry_ts: i64,
     pub strike: u64,
-    pub size: u64,
-    pub premium_floor: u64,
+    pub notional_tokens: u64,           // Token exposure (fractional options)
+    pub premium_floor_per_token_bps: u32, // Min premium rate in basis points
     pub valid_until_ts: i64,
     pub settlement: SettlementType,
     pub oracle_price: u64,
     pub oracle_ts: i64,
     pub status: RfqStatus,
     pub filled_by: Pubkey,
-    pub filled_premium: u64,
+    pub filled_premium: u64,            // Total premium paid
+    pub filled_premium_per_token_bps: u32, // Actual premium rate per token
     pub created_at: i64,
     pub bump: u8,
 }
@@ -375,8 +387,8 @@ pub struct RfqCreatedEvent {
     pub rfq_id: u64,
     pub underlying: Pubkey,
     pub strike: u64,
-    pub size: u64,
-    pub premium_floor: u64,
+    pub notional_tokens: u64,
+    pub premium_floor_per_token_bps: u32,
     pub valid_until_ts: i64,
 }
 
@@ -385,6 +397,7 @@ pub struct RfqFilledEvent {
     pub rfq_id: u64,
     pub maker: Pubkey,
     pub premium: u64,
+    pub premium_per_token_bps: u32,
 }
 
 #[event]

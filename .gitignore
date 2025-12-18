@@ -1,12 +1,15 @@
+# Build artifacts
 target/
 solana-release/
 *.tar.bz2
 node_modules/
 
-# Markdown files (except root READMEs)
+# macOS
+.DS_Store
+
+# Markdown files (except root docs)
 *.md
 !/README.md
 !/V2_README.md
 !/HOW_IT_WORKS.md
-
-*.sql
+!/AGENTS.md

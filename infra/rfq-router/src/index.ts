@@ -216,10 +216,30 @@ app.post("/rfq/:id/fill", async (req: Request, res: Response) => {
             });
         }
 
-        // In production, submit the fill transaction to the chain here
         console.log(`[RFQ ${req.params.id}] Filling with quote from ${bestQuote.makerPubkey}`);
         console.log(`  Premium: ${bestQuote.premium}`);
+        console.log(`  Size: ${rfq.request.size}`);
 
+        // Calculate premium per token in basis points for on-chain call
+        const premiumPerTokenBps = Math.floor(
+            (bestQuote.premium * 10000) / rfq.request.size
+        );
+        console.log(`  Premium per token (bps): ${premiumPerTokenBps}`);
+
+        // TODO: Submit on-chain fill transaction
+        // This requires:
+        // 1. Load keeper keypair from env
+        // 2. Create Anchor program instance
+        // 3. Call rfq.fill_rfq(premiumPerTokenBps)
+        // 4. Return transaction signature
+        //
+        // For now, log the parameters that would be used:
+        console.log(`  On-chain fill params:`);
+        console.log(`    Program: ${RFQ_PROGRAM_ID.toBase58()}`);
+        console.log(`    Premium BPS: ${premiumPerTokenBps}`);
+        console.log(`    Maker: ${bestQuote.makerPubkey}`);
+
+        // Mark as filled in local state
         rfq.status = "FILLED";
         rfq.bestQuote = bestQuote;
 
@@ -229,7 +249,12 @@ app.post("/rfq/:id/fill", async (req: Request, res: Response) => {
             makerWs.send(
                 JSON.stringify({
                     type: "RFQ_FILLED",
-                    data: { rfqId: req.params.id, premium: bestQuote.premium },
+                    data: {
+                        rfqId: req.params.id,
+                        premium: bestQuote.premium,
+                        premiumPerTokenBps,
+                        size: rfq.request.size,
+                    },
                 })
             );
         }
@@ -240,6 +265,9 @@ app.post("/rfq/:id/fill", async (req: Request, res: Response) => {
                 rfqId: req.params.id,
                 maker: bestQuote.makerPubkey,
                 premium: bestQuote.premium,
+                premiumPerTokenBps,
+                size: rfq.request.size,
+                // txSignature: "TODO - on-chain integration"
             },
         });
     } catch (error) {

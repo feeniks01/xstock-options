@@ -1,0 +1,21 @@
+{
+    "name": "Mock NVDAx",
+    "symbol": "NVDAx",
+    "description": "Mock NVIDIA xStock token for testing on Solana devnet. Used by OptionsFi vault to provide covered call yield.",
+    "image": "https://raw.githubusercontent.com/feeniks01/xstock-options/main/app/public/nvidiax_logo.png",
+    "external_url": "https://optionsfi.xyz",
+    "attributes": [
+        {
+            "trait_type": "Type",
+            "value": "xStock"
+        },
+        {
+            "trait_type": "Underlying",
+            "value": "NVDA"
+        },
+        {
+            "trait_type": "Network",
+            "value": "Solana Devnet"
+        }
+    ]
+}

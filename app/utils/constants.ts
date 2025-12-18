@@ -9,7 +9,7 @@ export interface XStock {
 }
 
 // xStock mint for on-chain operations
-export const MOCK_MINT = new PublicKey("H9AqpTYHCGCvJ12YxRX5goGNTcG9VAai1hgQHzVf68vT");
+export const MOCK_MINT = new PublicKey("D6wYCkoFg1PyQn1fX21Vv2Z1h1M5oSSK26AHtRvahdTB");
 
 // USDC mint for on-chain operations
 export const QUOTE_MINT = new PublicKey("EnDeaApTGfsWxMwLbmJsTh1gSLVR8gJG26dqoDjfPVag");

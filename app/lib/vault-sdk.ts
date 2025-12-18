@@ -69,6 +69,10 @@ export interface VaultData {
     tvl: number;
     utilizationCapBps: number;
     pendingWithdrawals: string;
+    // Notional exposure tracking (fractional options)
+    epochNotionalExposed: string;      // Total tokens exposed to options this epoch
+    epochPremiumEarned: string;        // Total premium earned this epoch
+    epochPremiumPerTokenBps: number;   // Average premium rate in basis points
 }
 
 /**
@@ -171,6 +175,10 @@ export async function fetchVaultData(
                 tvl,
                 utilizationCapBps: Number(vaultAccount.utilizationCapBps),
                 pendingWithdrawals: vaultAccount.pendingWithdrawals.toString(),
+                // Notional exposure tracking (with fallbacks for existing vaults)
+                epochNotionalExposed: (vaultAccount.epochNotionalExposed || 0).toString(),
+                epochPremiumEarned: (vaultAccount.epochPremiumEarned || 0).toString(),
+                epochPremiumPerTokenBps: Number(vaultAccount.epochPremiumPerTokenBps || 0),
             };
         } catch (error) {
             lastError = error as Error;

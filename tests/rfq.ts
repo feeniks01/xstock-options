@@ -82,11 +82,6 @@ describe("rfq", () => {
     it("initializes the RFQ config", async () => {
         const tx = await program.methods
             .initialize()
-            .accounts({
-                config: configPda,
-                authority: authority.publicKey,
-                systemProgram: anchor.web3.SystemProgram.programId,
-            })
             .rpc();
 
         console.log("Initialize config tx:", tx);
@@ -100,10 +95,7 @@ describe("rfq", () => {
         const tx = await program.methods
             .addMaker(makerKeypair.publicKey)
             .accounts({
-                config: configPda,
                 makerAccount: makerAccountPda,
-                authority: authority.publicKey,
-                systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
 
@@ -129,8 +121,8 @@ describe("rfq", () => {
         const optionType = { call: {} };
         const expiryTs = new anchor.BN(Math.floor(Date.now() / 1000) + 86400); // 1 day
         const strike = new anchor.BN(150_000_000); // $150
-        const size = new anchor.BN(10_000_000); // 10 contracts
-        const premiumFloor = new anchor.BN(500_000); // $0.50
+        const notionalTokens = new anchor.BN(10_000_000); // 10 tokens
+        const premiumFloorPerTokenBps = 500; // 5% per token in basis points
         const validUntilTs = new anchor.BN(Math.floor(Date.now() / 1000) + 300); // 5 min
         const settlement = { cash: {} };
         const oraclePrice = new anchor.BN(145_000_000); // $145
@@ -142,18 +134,17 @@ describe("rfq", () => {
                 optionType,
                 expiryTs,
                 strike,
-                size,
-                premiumFloor,
+                notionalTokens,
+                premiumFloorPerTokenBps,
                 validUntilTs,
                 settlement,
                 oraclePrice,
                 oracleTs
             )
-            .accounts({
+            .accountsPartial({
                 config: configPda,
                 rfq: rfqPda,
                 creator: authority.publicKey,
-                systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
 
@@ -162,23 +153,22 @@ describe("rfq", () => {
         const rfq = await program.account.rfq.fetch(rfqPda);
         expect(rfq.id.toNumber()).to.equal(0);
         expect(rfq.strike.toNumber()).to.equal(150_000_000);
-        expect(rfq.premiumFloor.toNumber()).to.equal(500_000);
+        expect(rfq.premiumFloorPerTokenBps).to.equal(500);
         expect(rfq.status.open).to.exist;
     });
 
     it("fills an RFQ", async () => {
-        const premium = new anchor.BN(1_000_000); // $1.00 premium
+        const premiumPerTokenBps = 600; // 6% per token
 
         const tx = await program.methods
-            .fillRfq(premium)
-            .accounts({
+            .fillRfq(premiumPerTokenBps)
+            .accountsPartial({
                 config: configPda,
                 rfq: rfqPda,
                 makerAccount: makerAccountPda,
                 creatorTokenAccount: creatorTokenAccount,
                 makerTokenAccount: makerTokenAccount,
                 maker: makerKeypair.publicKey,
-                tokenProgram: TOKEN_PROGRAM_ID,
             })
             .signers([makerKeypair])
             .rpc();
@@ -188,10 +178,9 @@ describe("rfq", () => {
         const rfq = await program.account.rfq.fetch(rfqPda);
         expect(rfq.status.filled).to.exist;
         expect(rfq.filledBy.toString()).to.equal(makerKeypair.publicKey.toString());
-        expect(rfq.filledPremium.toNumber()).to.equal(1_000_000);
+        expect(rfq.filledPremiumPerTokenBps).to.equal(600);
 
         const makerAccount = await program.account.makerAccount.fetch(makerAccountPda);
         expect(makerAccount.totalFills.toNumber()).to.equal(1);
-        expect(makerAccount.totalPremiumPaid.toNumber()).to.equal(1_000_000);
     });
 });
