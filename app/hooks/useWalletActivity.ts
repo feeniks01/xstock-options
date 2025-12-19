@@ -65,6 +65,27 @@ export function useWalletActivity() {
 
                     if (!involvesVault) continue;
 
+                    // Parse the vault ID from account keys by matching against known vault PDAs
+                    let vaultId: string | undefined;
+                    const knownVaultIds = ["nvdax", "tslax", "spyx", "aaplx", "metax"];
+                    for (const id of knownVaultIds) {
+                        // Derive the vault PDA for this asset
+                        const [vaultPda] = PublicKey.findProgramAddressSync(
+                            [Buffer.from("vault"), Buffer.from(id.charAt(0).toUpperCase() + id.slice(1, -1).toUpperCase() + 'x')],
+                            VAULT_PROGRAM_ID
+                        );
+
+                        // Check if this vault PDA is in the transaction accounts
+                        const isInTx = accountKeys.some(
+                            (key) => key.pubkey.toString() === vaultPda.toString()
+                        );
+
+                        if (isInTx) {
+                            vaultId = id;
+                            break;
+                        }
+                    }
+
                     // Parse the transaction type from logs
                     const logs = tx.meta.logMessages || [];
                     let type: WalletActivity["type"] = "unknown";
@@ -107,6 +128,7 @@ export function useWalletActivity() {
                         slot: sig.slot,
                         success: sig.err === null,
                         amount,
+                        vaultId,
                     });
                 } catch (txErr) {
                     // Skip individual transaction errors

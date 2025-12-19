@@ -385,13 +385,14 @@ export default function PortfolioPage() {
     const costBasisByVault = useMemo(() => {
         const basis: Record<string, number> = {};
         walletActivities.forEach(activity => {
-            const vaultId = "nvdax"; // TODO: Parse vault ID from activity when available
+            // Use vaultId from activity if available, fallback to nvdax for legacy transactions
+            const vaultId = activity.vaultId || "nvdax";
             if (!basis[vaultId]) basis[vaultId] = 0;
 
             const tokenAmount = activity.amount || 0;
-            // Use historical price at time of deposit (approximated by current oracle price)
-            // In a full implementation, you'd store the price at deposit time
-            const priceAtTime = getPrice("NVDAx") || 140; // Fallback
+            // Get the symbol for this vault to fetch the correct oracle price
+            const meta = VAULT_METADATA[vaultId];
+            const priceAtTime = meta ? (getPrice(meta.symbol) || 140) : 140; // Use oracle price for this vault
 
             if (activity.type === "deposit") {
                 basis[vaultId] += tokenAmount * priceAtTime;
@@ -436,9 +437,12 @@ export default function PortfolioPage() {
                 const unrealizedPnl = sharesUsd - costBasis;
                 const unrealizedPnlPercent = costBasis > 0 ? (unrealizedPnl / costBasis) * 100 : 0;
 
-                // Accrued premium would come from vault state - for now 0 until earned
-                // TODO: Read from vault.pendingPremium or similar field when available
-                const accruedPremium = 0;
+                // Calculate accrued premium from vault's epoch premium earned
+                // epochPremiumEarned is the total premium for the vault, user's share is proportional
+                const epochPremiumTotal = Number(vault.epochPremiumEarned || "0") / 1e6; // Convert from base units
+                const totalVaultShares = Number(vault.totalShares) || 1;
+                const userShareRatio = userShares / totalVaultShares;
+                const accruedPremium = epochPremiumTotal * userShareRatio * oraclePrice;
 
                 // APY from vault data
                 const vaultApy = vault.apy || 0;

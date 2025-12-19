@@ -123,34 +123,60 @@ export default function PortfolioPage() {
         })
       );
 
-      const allCalls = accountInfos.map((accInfo) => {
+      const allCalls = await Promise.all(accountInfos.map(async (accInfo) => {
         if (!accInfo) return null;
         try {
           if (accInfo.account.data.length < 173) {
             return null;
           }
+
+          // Fetch creation timestamp from signatures
+          let creationTimestamp: number | undefined;
+          try {
+            const signatures = await connection.getSignaturesForAddress(
+              accInfo.pubkey,
+              { limit: 1 },
+              "confirmed"
+            );
+            if (signatures.length > 0 && signatures[0].blockTime) {
+              // Get the earliest signature (account creation)
+              const allSigs = await connection.getSignaturesForAddress(
+                accInfo.pubkey,
+                { limit: 10 },
+                "confirmed"
+              );
+              const earliest = allSigs[allSigs.length - 1];
+              creationTimestamp = earliest?.blockTime || signatures[0].blockTime;
+            }
+          } catch (e) {
+            // Ignore errors fetching signatures
+          }
+
           return {
             publicKey: accInfo.pubkey,
             account: accountClient.coder.accounts.decode("coveredCall", accInfo.account.data),
-            accountInfo: accInfo.accountInfo // Store account info for creation time
+            accountInfo: accInfo.accountInfo, // Store account info for creation time
+            creationTimestamp, // Store creation timestamp
           };
         } catch (e) {
           return null;
         }
-      }).filter(a => a !== null);
+      }));
+
+      const filteredCalls = allCalls.filter(a => a !== null);
 
       // Filter to only show positions for the current stock's mint that belong to the user
       // Ownership logic:
       // - If you're the seller AND there's no buyer → you own it (you wrote it and haven't sold it)
       // - If you're the buyer → you own it
       // - If you're the seller AND there's a buyer → you DON'T own it (you sold it to someone else)
-      const positions = allCalls.filter((a: any) => {
+      const positions = filteredCalls.filter((a: any) => {
         if (a.account.xstockMint.toString() !== stock.mint.toString()) return false;
-        
+
         const isSeller = a.account.seller.toString() === wallet.publicKey?.toString();
         const isBuyer = a.account.buyer?.toString() === wallet.publicKey?.toString();
         const hasBuyer = a.account.buyer !== null;
-        
+
         // You own it if:
         // 1. You're the buyer (you bought it)
         // 2. You're the seller AND there's no buyer (you wrote it and haven't sold it)
@@ -173,7 +199,7 @@ export default function PortfolioPage() {
       });
 
       setUserPositions(openPositions);
-      
+
       // Auto-select first position if available
       if (openPositions.length > 0 && selectedPositionIndex === null) {
         setSelectedPositionIndex(0);
@@ -216,31 +242,23 @@ export default function PortfolioPage() {
     const strike = position.account.strike.toNumber() / 100_000_000;
     const premium = position.account.premium.toNumber() / 1_000_000;
     const expiry = new Date(position.account.expiryTs.toNumber() * 1000);
-    const contracts = position.account.amount 
+    const contracts = position.account.amount
       ? position.account.amount.toNumber() / (100 * 1_000_000)
       : 1;
-    
+
     // Determine ownership: buyer takes precedence over seller
     const isBuyer = position.account.buyer?.toString() === wallet.publicKey?.toString();
     const isSeller = position.account.seller.toString() === wallet.publicKey?.toString() && !isBuyer;
     const isExercised = position.account.exercised;
     const isExpired = new Date() > expiry;
-    
+
     // Get date bought: use account creation time if available
     let dateBought: string | undefined;
-    if (position.accountInfo) {
-      // Account creation time is not directly available, but we can estimate from rent epoch
-      // For now, we'll try to get it from the account's slot or use a fallback
-      // In a production system, you'd fetch the transaction signature when the account was created
-      try {
-        // Try to get the transaction that created this account
-        // For now, we'll leave it undefined and show "N/A" in the UI
-        // TODO: Fetch creation transaction signature to get accurate date
-      } catch (e) {
-        // Fallback: leave undefined
-      }
+    if (position.publicKey && position.creationTimestamp) {
+      // Use pre-fetched creation timestamp if available
+      dateBought = new Date(position.creationTimestamp * 1000).toISOString();
     }
-    
+
     const status: "OPEN" | "EXERCISED" | "EXPIRED" = isExercised ? "EXERCISED" : isExpired ? "EXPIRED" : "OPEN";
 
     // Calculate time to expiry in years
@@ -292,7 +310,7 @@ export default function PortfolioPage() {
       T: T
     };
     const { d2 } = calculateD1D2(params);
-    
+
     // Probability ITM = N(d2) for calls
     const probITM = T > 0 ? normCdf(d2) : (currentPrice > strike ? 1 : 0);
     const probOTM = 1 - probITM;
@@ -314,12 +332,12 @@ export default function PortfolioPage() {
     // Theta projection (simulate theta at different time points)
     const thetaProjection = T > 0 ? {
       today: optionPricing.theta * 100 * contracts,
-      in30Days: T > 30/365 ? (() => {
-        const theta30 = priceOption(currentPrice, strike, DEFAULT_RISK_FREE_RATE, baseIV, T - 30/365, 'call');
+      in30Days: T > 30 / 365 ? (() => {
+        const theta30 = priceOption(currentPrice, strike, DEFAULT_RISK_FREE_RATE, baseIV, T - 30 / 365, 'call');
         return theta30.theta * 100 * contracts;
       })() : 0,
-      in90Days: T > 90/365 ? (() => {
-        const theta90 = priceOption(currentPrice, strike, DEFAULT_RISK_FREE_RATE, baseIV, T - 90/365, 'call');
+      in90Days: T > 90 / 365 ? (() => {
+        const theta90 = priceOption(currentPrice, strike, DEFAULT_RISK_FREE_RATE, baseIV, T - 90 / 365, 'call');
         return theta90.theta * 100 * contracts;
       })() : 0,
     } : undefined;
@@ -366,7 +384,7 @@ export default function PortfolioPage() {
     if (selectedPositionIndex !== null && userPositions[selectedPositionIndex] && stockData) {
       const pos = transformPositionToData(userPositions[selectedPositionIndex], stockData.currentPrice);
       setPositionData(pos);
-      
+
       if (pos) {
         setOrder({
           side: pos.side === "SELLER" ? "BUY_TO_CLOSE" : "SELL_TO_CLOSE",
@@ -513,11 +531,10 @@ export default function PortfolioPage() {
                 <span className={`text-[10px] font-semibold px-2 py-1 rounded bg-white/10 text-white`}>
                   {displayPosition.side}
                 </span>
-                <span className={`text-[10px] font-semibold px-2 py-1 rounded ${
-                  displayPosition.status === "OPEN" ? "bg-green-500/15 text-green-400" :
+                <span className={`text-[10px] font-semibold px-2 py-1 rounded ${displayPosition.status === "OPEN" ? "bg-green-500/15 text-green-400" :
                   displayPosition.status === "EXERCISED" ? "bg-blue-500/15 text-blue-400" :
-                  "bg-red-500/15 text-red-400"
-                }`}>
+                    "bg-red-500/15 text-red-400"
+                  }`}>
                   {displayPosition.status}
                 </span>
               </div>
@@ -614,9 +631,9 @@ export default function PortfolioPage() {
                   <Row label="Contracts" value={displayPosition.contractsCount} />
                   <Row label="Avg cost / share" value={displayPosition.avgCostPerShare} prefix="$" />
                   <Row label="Cost basis" value={displayPosition.costBasis} prefix="$" />
-                  <Row 
-                    label="Date bought" 
-                    valueLabel={displayPosition.dateBought ? new Date(displayPosition.dateBought).toLocaleDateString() : "N/A"} 
+                  <Row
+                    label="Date bought"
+                    valueLabel={displayPosition.dateBought ? new Date(displayPosition.dateBought).toLocaleDateString() : "N/A"}
                   />
                   <Row label="Total return" value={displayPosition.totalPnL} prefix="$" valueClass={pnlColor} />
                   <Row label="Total return %" value={displayPosition.totalPnLPct} suffix="%" valueClass={pnlColor} />
