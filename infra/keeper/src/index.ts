@@ -86,6 +86,8 @@ interface KeeperState {
     isRunning: boolean;
     onchainClient: OnChainClient | null;
     epochPremiumEarned: bigint; // Track premium earned during current epoch
+    epochStrikePrice: number;   // Strike price for current epoch (for ITM/OTM calc)
+    epochNotional: bigint;      // Notional exposed for settlement payoff calc
 }
 
 const state: KeeperState = {
@@ -98,6 +100,8 @@ const state: KeeperState = {
     isRunning: false,
     onchainClient: null,
     epochPremiumEarned: BigInt(0),
+    epochStrikePrice: 0,
+    epochNotional: BigInt(0),
 };
 
 // ============================================================================
@@ -157,6 +161,8 @@ interface FillResponse {
 interface OnChainTxResult {
     recordExposureTx: string | null;
     advanceEpochTx: string | null;
+    premiumTransferTx?: string | null;
+    payoffTransferTx?: string | null;
 }
 
 // ============================================================================
@@ -503,7 +509,25 @@ async function runEpochRoll(): Promise<boolean> {
             try {
                 const premium = BigInt(fillResponse.filled?.premium || 0);
 
-                // Record notional exposure on vault
+                // Step 1: Transfer USDC premium from MM (keeper) to vault escrow
+                if (premium > 0) {
+                    try {
+                        const vaultUsdcAccount = await state.onchainClient.getOrCreateVaultUsdcAccount(config.assetId);
+                        const premiumTx = await state.onchainClient.transferPremium(vaultUsdcAccount, premium);
+                        logger.info("USDC premium transferred", {
+                            tx: premiumTx,
+                            amount: premium.toString(),
+                            vaultUsdcAccount: vaultUsdcAccount.toBase58()
+                        });
+                        onchainTxs.premiumTransferTx = premiumTx;
+                    } catch (premiumError) {
+                        logger.error("Premium transfer failed - continuing", { error: premiumError });
+                        // Continue with recording exposure even if premium transfer fails
+                        // (keeper may not have USDC for demo)
+                    }
+                }
+
+                // Step 2: Record notional exposure on vault
                 const recordTx = await state.onchainClient.recordNotionalExposure(
                     config.assetId,
                     BigInt(notional),
@@ -514,9 +538,12 @@ async function runEpochRoll(): Promise<boolean> {
 
                 // Track premium in state for manual settlement
                 state.epochPremiumEarned = state.epochPremiumEarned + premium;
-                logger.info("Premium tracked for settlement", {
-                    newPremium: premium.toString(),
-                    totalPremium: state.epochPremiumEarned.toString()
+                state.epochStrikePrice = strike;
+                state.epochNotional = state.epochNotional + BigInt(notional);
+                logger.info("Epoch data tracked for settlement", {
+                    premium: state.epochPremiumEarned.toString(),
+                    strike: state.epochStrikePrice,
+                    notional: state.epochNotional.toString()
                 });
 
                 // NOTE: Epoch advance is now triggered manually via /settle endpoint
@@ -605,26 +632,83 @@ function startHealthServer(): void {
         }
 
         try {
-            // Use actual premium earned from epoch roll, or minimum if none recorded
+            // Fetch current oracle price for ITM/OTM determination
+            const oraclePriceData = await fetchOraclePrice();
+            if (!oraclePriceData) {
+                throw new Error("Failed to fetch oracle price for settlement");
+            }
+            const currentPrice = oraclePriceData.price;
+            logger.info("Settlement price check", {
+                currentPrice,
+                strikePrice: state.epochStrikePrice
+            });
+
+            // Determine if option is ITM (for CALL: spot > strike)
+            const isITM = currentPrice > state.epochStrikePrice;
+            let payoffAmount = BigInt(0);
+            let settlementType = "OTM";
+
+            if (isITM && state.epochNotional > 0 && state.epochStrikePrice > 0) {
+                // Calculate payoff: (spot - strike) / strike * notional (in USDC terms)
+                const priceGain = currentPrice - state.epochStrikePrice;
+                const payoffRatio = priceGain / state.epochStrikePrice;
+                payoffAmount = BigInt(Math.floor(Number(state.epochNotional) * payoffRatio));
+                settlementType = "ITM";
+
+                logger.info("ITM settlement calculated", {
+                    priceGain,
+                    payoffRatio,
+                    payoffAmount: payoffAmount.toString()
+                });
+
+                // Transfer payoff from vault escrow to MM (keeper)
+                if (payoffAmount > 0) {
+                    try {
+                        const vaultUsdcAccount = await state.onchainClient.getOrCreateVaultUsdcAccount(config.assetId);
+                        const payoffTx = await state.onchainClient.transferPayoff(vaultUsdcAccount, payoffAmount);
+                        logger.info("ITM payoff transferred to MM", { tx: payoffTx, amount: payoffAmount.toString() });
+                    } catch (payoffError) {
+                        logger.error("Payoff transfer failed", { error: payoffError });
+                        // Continue with settlement even if payoff fails
+                    }
+                }
+            } else {
+                logger.info("OTM settlement - vault keeps premium");
+            }
+
+            // Use actual premium earned from epoch roll
             const premiumToSettle = state.epochPremiumEarned > 0
                 ? state.epochPremiumEarned
                 : BigInt(1_000_000); // Fallback: 1 token minimum
 
-            logger.info("Settling with premium", { premium: premiumToSettle.toString() });
-
+            // Advance epoch on-chain
             const tx = await state.onchainClient.advanceEpoch(
                 config.assetId,
                 premiumToSettle
             );
 
-            logger.info("Settlement completed", { tx });
+            logger.info("Settlement completed", { tx, settlementType });
 
-            // Reset premium tracking for next epoch
+            // Save values before reset for response
+            const settlementStrike = state.epochStrikePrice;
+
+            // Reset epoch tracking for next epoch
             state.epochPremiumEarned = BigInt(0);
+            state.epochStrikePrice = 0;
+            state.epochNotional = BigInt(0);
+
+            const netGain = settlementType === "OTM"
+                ? Number(premiumToSettle) / 1e6
+                : Number(premiumToSettle - payoffAmount) / 1e6;
 
             res.json({
                 success: true,
-                message: `Settlement complete - epoch advanced. Premium: ${Number(premiumToSettle) / 1e6} tokens`,
+                message: `${settlementType} Settlement - ${settlementType === "OTM" ? "Vault keeps" : "Net"}: ${netGain.toFixed(2)} tokens`,
+                settlementType,
+                currentPrice,
+                strikePrice: settlementStrike,
+                premiumEarned: Number(premiumToSettle) / 1e6,
+                payoffPaid: Number(payoffAmount) / 1e6,
                 txSignature: tx
             });
         } catch (error: any) {

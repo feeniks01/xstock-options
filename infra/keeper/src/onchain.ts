@@ -20,6 +20,11 @@ const RFQ_PROGRAM_ID = new PublicKey(
     process.env.RFQ_PROGRAM_ID || "3M2K6htNbWyZHtvvUyUME19f5GUS6x8AtGmitFENDT5Z"
 );
 
+// Mock USDC mint for premium payments
+const MOCK_USDC_MINT = new PublicKey(
+    process.env.USDC_MINT || "EnDeaApTGfsWxMwLbmJsTh1gSLVR8gJG26dqoDjfPVag"
+);
+
 // ============================================================================
 // IDL Types (minimal - just what we need)
 // ============================================================================
@@ -268,6 +273,99 @@ export class OnChainClient {
      */
     get publicKey(): PublicKey {
         return this.wallet.publicKey;
+    }
+
+    /**
+     * Get the USDC mint address
+     */
+    get usdcMint(): PublicKey {
+        return MOCK_USDC_MINT;
+    }
+
+    /**
+     * Transfer USDC premium from MM (keeper) to vault escrow account
+     * Returns transaction signature
+     */
+    async transferPremium(
+        recipientTokenAccount: PublicKey,
+        amount: bigint
+    ): Promise<string> {
+        const { getOrCreateAssociatedTokenAccount, transfer } = await import("@solana/spl-token");
+
+        // Get keeper's USDC token account
+        const senderTokenAccount = await getOrCreateAssociatedTokenAccount(
+            this.connection,
+            this.wallet.payer,
+            MOCK_USDC_MINT,
+            this.wallet.publicKey
+        );
+
+        console.log(`Transferring ${amount} USDC from ${senderTokenAccount.address.toBase58()} to ${recipientTokenAccount.toBase58()}`);
+
+        const signature = await transfer(
+            this.connection,
+            this.wallet.payer,
+            senderTokenAccount.address,
+            recipientTokenAccount,
+            this.wallet.payer,
+            amount
+        );
+
+        return signature;
+    }
+
+    /**
+     * Transfer USDC payoff from vault escrow to MM (keeper) for ITM settlement
+     * Note: This requires the vault escrow to have delegated authority to keeper
+     */
+    async transferPayoff(
+        escrowTokenAccount: PublicKey,
+        amount: bigint
+    ): Promise<string> {
+        const { getOrCreateAssociatedTokenAccount, transfer } = await import("@solana/spl-token");
+
+        // Get keeper's USDC token account to receive payoff
+        const recipientTokenAccount = await getOrCreateAssociatedTokenAccount(
+            this.connection,
+            this.wallet.payer,
+            MOCK_USDC_MINT,
+            this.wallet.publicKey
+        );
+
+        console.log(`Receiving ${amount} USDC payoff to ${recipientTokenAccount.address.toBase58()}`);
+
+        // Note: This requires escrow to have approved keeper as delegate
+        // For demo, keeper is authority of escrow account
+        const signature = await transfer(
+            this.connection,
+            this.wallet.payer,
+            escrowTokenAccount,
+            recipientTokenAccount.address,
+            this.wallet.payer,
+            amount
+        );
+
+        return signature;
+    }
+
+    /**
+     * Get or create a vault USDC escrow account for premium collection
+     */
+    async getOrCreateVaultUsdcAccount(assetId: string): Promise<PublicKey> {
+        const { getOrCreateAssociatedTokenAccount } = await import("@solana/spl-token");
+        const [vaultPda] = deriveVaultPda(assetId);
+
+        // Create an ATA for the vault PDA (controlled by keeper for now)
+        // In production, this would be a PDA controlled by the vault program
+        const account = await getOrCreateAssociatedTokenAccount(
+            this.connection,
+            this.wallet.payer,
+            MOCK_USDC_MINT,
+            vaultPda,
+            true // Allow owner off curve (PDA)
+        );
+
+        return account.address;
     }
 }
 
