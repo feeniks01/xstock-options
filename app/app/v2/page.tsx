@@ -15,7 +15,8 @@ const VAULT_METADATA: Record<string, {
     utilization: number;
     price: number; // Approximate underlying price for TVL display
 }> = {
-    nvdax: { name: "NVDAx Vault", strategy: "Covered Call", tier: "Normal", nextRoll: "Pending", apy: 12.4, utilization: 0, price: 177 },
+    // NVDAx vault - uses Mock NVDAx tokens on devnet
+    nvdax: { name: "NVDAx Vault", strategy: "Covered Call", tier: "Normal", nextRoll: "Ready", apy: 12.4, utilization: 0, price: 137 },
     aaplx: { name: "AAPLx Vault", strategy: "Covered Call", tier: "Conservative", nextRoll: "5d 8h", apy: 8.2, utilization: 42, price: 195 },
     tslax: { name: "TSLAx Vault", strategy: "Covered Call", tier: "Aggressive", nextRoll: "1d 3h", apy: 18.6, utilization: 72, price: 250 },
     spyx: { name: "SPYx Vault", strategy: "Covered Call", tier: "Conservative", nextRoll: "3d 6h", apy: 6.5, utilization: 35, price: 590 },

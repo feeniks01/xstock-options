@@ -23,14 +23,18 @@ export interface VaultConfig {
     underlyingMint: PublicKey;
 }
 
-// Using devnet USDC as placeholder
-const DEVNET_USDC = new PublicKey("D6wYCkoFg1PyQn1fX21Vv2Z1h1M5oSSK26AHtRvahdTB");
+// Mock NVDAx token mint on devnet (same as V1 mock)
+const MOCK_NVDAX_MINT = new PublicKey("D6wYCkoFg1PyQn1fX21Vv2Z1h1M5oSSK26AHtRvahdTB");
+
+// Using devnet USDC as placeholder for other vaults
+const DEVNET_USDC = new PublicKey("EnDeaApTGfsWxMwLbmJsTh1gSLVR8gJG26dqoDjfPVag");
 
 export const VAULTS: Record<string, VaultConfig> = {
+    // NVDAx vault - uses Mock NVDAx tokens (NEW vault with correct schema)
     nvdax: {
         symbol: "NVDAx",
-        assetId: "NVDAx",
-        underlyingMint: DEVNET_USDC,
+        assetId: "MockNVDAx",  // NEW asset_id for schema-compatible vault
+        underlyingMint: MOCK_NVDAX_MINT,
     },
     tslax: {
         symbol: "TSLAx",
