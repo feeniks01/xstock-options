@@ -666,6 +666,18 @@
             "type": "u64"
           },
           {
+            "name": "epoch_notional_exposed",
+            "type": "u64"
+          },
+          {
+            "name": "epoch_premium_earned",
+            "type": "u64"
+          },
+          {
+            "name": "epoch_premium_per_token_bps",
+            "type": "u32"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
