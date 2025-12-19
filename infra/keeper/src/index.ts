@@ -85,6 +85,7 @@ interface KeeperState {
     errorCount: number;
     isRunning: boolean;
     onchainClient: OnChainClient | null;
+    epochPremiumEarned: bigint; // Track premium earned during current epoch
 }
 
 const state: KeeperState = {
@@ -96,6 +97,7 @@ const state: KeeperState = {
     errorCount: 0,
     isRunning: false,
     onchainClient: null,
+    epochPremiumEarned: BigInt(0),
 };
 
 // ============================================================================
@@ -499,22 +501,25 @@ async function runEpochRoll(): Promise<boolean> {
 
         if (state.onchainClient) {
             try {
+                const premium = BigInt(fillResponse.filled?.premium || 0);
+
                 // Record notional exposure on vault
                 const recordTx = await state.onchainClient.recordNotionalExposure(
                     config.assetId,
                     BigInt(notional),
-                    BigInt(fillResponse.filled?.premium || 0)
+                    premium
                 );
                 onchainTxs.recordExposureTx = recordTx;
                 logger.info("Recorded notional exposure", { tx: recordTx });
 
-                // Advance epoch with premium
-                const advanceTx = await state.onchainClient.advanceEpoch(
-                    config.assetId,
-                    BigInt(fillResponse.filled?.premium || 0)
-                );
-                onchainTxs.advanceEpochTx = advanceTx;
-                logger.info("Advanced epoch", { tx: advanceTx });
+                // Track premium in state for manual settlement
+                state.epochPremiumEarned = state.epochPremiumEarned + premium;
+                logger.info("Premium tracked for settlement", {
+                    newPremium: premium.toString(),
+                    totalPremium: state.epochPremiumEarned.toString()
+                });
+
+                // NOTE: Epoch advance is now triggered manually via /settle endpoint
 
             } catch (onchainError) {
                 logger.error("On-chain transaction failed", { error: onchainError });
@@ -555,6 +560,18 @@ async function runEpochRoll(): Promise<boolean> {
 function startHealthServer(): void {
     const app = express();
 
+    // Enable CORS for frontend
+    app.use((req: Request, res: Response, next) => {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.header("Access-Control-Allow-Headers", "Content-Type");
+        if (req.method === "OPTIONS") {
+            res.sendStatus(200);
+            return;
+        }
+        next();
+    });
+
     app.get("/health", (req: Request, res: Response) => {
         res.json({
             status: "ok",
@@ -576,6 +593,47 @@ function startHealthServer(): void {
         logger.info("Manual trigger received");
         const success = await runEpochRoll();
         res.json({ success, message: success ? "Epoch roll completed" : "Epoch roll failed" });
+    });
+
+    // Manual settlement endpoint for demo
+    app.post("/settle", async (req: Request, res: Response) => {
+        logger.info("Manual settlement trigger received");
+
+        if (!state.onchainClient) {
+            res.json({ success: false, message: "On-chain client not initialized" });
+            return;
+        }
+
+        try {
+            // Use actual premium earned from epoch roll, or minimum if none recorded
+            const premiumToSettle = state.epochPremiumEarned > 0
+                ? state.epochPremiumEarned
+                : BigInt(1_000_000); // Fallback: 1 token minimum
+
+            logger.info("Settling with premium", { premium: premiumToSettle.toString() });
+
+            const tx = await state.onchainClient.advanceEpoch(
+                config.assetId,
+                premiumToSettle
+            );
+
+            logger.info("Settlement completed", { tx });
+
+            // Reset premium tracking for next epoch
+            state.epochPremiumEarned = BigInt(0);
+
+            res.json({
+                success: true,
+                message: `Settlement complete - epoch advanced. Premium: ${Number(premiumToSettle) / 1e6} tokens`,
+                txSignature: tx
+            });
+        } catch (error: any) {
+            logger.error("Settlement failed", { error });
+            res.json({
+                success: false,
+                message: error.message || "Settlement failed"
+            });
+        }
     });
 
     app.listen(config.healthPort, () => {

@@ -388,6 +388,15 @@ pub mod vault {
         msg!("Created metadata for share token: {}", symbol);
         Ok(())
     }
+
+    /// Emergency repair function to fix incorrectly stored bump
+    /// Only callable by vault authority
+    pub fn repair_bump(ctx: Context<RepairBump>, new_bump: u8) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        msg!("Repairing vault bump: {} -> {}", vault.bump, new_bump);
+        vault.bump = new_bump;
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -618,6 +627,19 @@ pub struct RecordNotionalExposure<'info> {
     pub authority: Signer<'info>,
 }
 
+/// Context for repairing vault bump - uses address constraint instead of seeds
+/// since seeds validation would fail with incorrect bump
+#[derive(Accounts)]
+pub struct RepairBump<'info> {
+    #[account(
+        mut,
+        constraint = vault.authority == authority.key() @ VaultError::Unauthorized
+    )]
+    pub vault: Account<'info, Vault>,
+
+    pub authority: Signer<'info>,
+}
+
 #[derive(Accounts)]
 pub struct CreateShareMetadata<'info> {
     #[account(
@@ -721,4 +743,6 @@ pub enum VaultError {
     Overflow,
     #[msg("Exceeds utilization cap")]
     ExceedsUtilizationCap,
+    #[msg("Unauthorized - caller is not vault authority")]
+    Unauthorized,
 }

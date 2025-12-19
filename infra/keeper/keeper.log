@@ -136,3 +136,174 @@
 2025-12-18T06:54:13.930Z [INFO] ========================================
 2025-12-18T06:54:13.930Z [INFO] Keeper service ready
 2025-12-18T06:54:13.930Z [INFO] ========================================
+2025-12-19T05:04:15.220Z [INFO] ========================================
+2025-12-19T05:04:15.221Z [INFO] xStock Keeper Service Starting
+2025-12-19T05:04:15.221Z [INFO] ========================================
+2025-12-19T05:04:15.221Z [INFO] Configuration {"assetId":"NVDAx","cronSchedule":"0 */6 * * *","epochDuration":"604800s","quoteWait":"10000ms","strikeDelta":"500bps"}
+2025-12-19T05:04:15.249Z [INFO] Wallet loaded {"pubkey":"5cyhTaQ5A7gxwF5zmpn4zJHsyiLBQV9ffPvtNPYNiLpX"}
+2025-12-19T05:04:15.255Z [INFO] On-chain client initialized
+2025-12-19T05:04:15.256Z [INFO] Scheduling epoch rolls: 0 */6 * * *
+2025-12-19T05:04:15.258Z [INFO] Keeper service ready
+2025-12-19T05:04:15.258Z [INFO] ========================================
+2025-12-19T05:04:15.258Z [INFO] Health server listening on port 3010
+2025-12-19T05:06:11.738Z [INFO] ========================================
+2025-12-19T05:06:11.739Z [INFO] xStock Keeper Service Starting
+2025-12-19T05:06:11.740Z [INFO] ========================================
+2025-12-19T05:06:11.740Z [INFO] Configuration {"assetId":"NVDAx","cronSchedule":"0 */6 * * *","epochDuration":"604800s","quoteWait":"10000ms","strikeDelta":"500bps"}
+2025-12-19T05:06:11.770Z [INFO] Wallet loaded {"pubkey":"5cyhTaQ5A7gxwF5zmpn4zJHsyiLBQV9ffPvtNPYNiLpX"}
+2025-12-19T05:06:11.776Z [INFO] On-chain client initialized
+2025-12-19T05:06:11.778Z [INFO] Scheduling epoch rolls: 0 */6 * * *
+2025-12-19T05:06:11.779Z [INFO] Keeper service ready
+2025-12-19T05:06:11.779Z [INFO] ========================================
+2025-12-19T05:06:11.780Z [INFO] Health server listening on port 3010
+2025-12-19T05:07:37.506Z [INFO] Manual trigger received
+2025-12-19T05:07:37.508Z [INFO] ========================================
+2025-12-19T05:07:37.508Z [INFO] Starting epoch roll {"runNumber":1}
+2025-12-19T05:07:37.509Z [INFO] ========================================
+2025-12-19T05:07:37.509Z [INFO] Step 1: Fetching oracle price...
+2025-12-19T05:07:37.762Z [INFO] Fetched price from Pyth Hermes API {"assetId":"NVDAx","price":"176.33","confidence":"0.2344"}
+2025-12-19T05:07:37.762Z [INFO] Oracle price {"price":176.331324,"conf":234368}
+2025-12-19T05:07:37.762Z [INFO] Step 2: Computing strike...
+2025-12-19T05:07:37.762Z [INFO] Strike computed {"optionType":"CALL","spot":176.331324,"strike":185.14789,"deltaBps":500}
+2025-12-19T05:07:37.763Z [INFO] Step 3: Calculating notional...
+2025-12-19T05:07:37.763Z [INFO] Notional calculated {"tvl":100000,"utilizationBps":5000,"notional":50000}
+2025-12-19T05:07:37.763Z [INFO] Step 4: Creating RFQ...
+2025-12-19T05:07:37.808Z [ERROR] Failed to create RFQ {"error":{"message":"Error","name":"AggregateError","stack":"AggregateError: Error\n    at Function.AxiosError.from (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/core/AxiosError.js:96:14)\n    at RedirectableRequest.handleRequestError (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/adapters/http.js:817:25)\n    at RedirectableRequest.emit (node:events:530:35)\n    at RedirectableRequest.emit (node:domain:489:12)\n    at ClientRequest.eventHandlers.<computed> (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/follow-redirects/index.js:49:24)\n    at ClientRequest.emit (node:events:518:28)\n    at ClientRequest.emit (node:domain:489:12)\n    at emitErrorEvent (node:_http_client:104:11)\n    at Socket.socketErrorListener (node:_http_client:518:5)\n    at Socket.emit (node:events:518:28)\n    at Axios.request (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/core/Axios.js:45:41)\n    at processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createRfq (/Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:357:26)\n    at async runEpochRoll (/Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:470:29)\n    at async /Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:589:25","config":{"transitional":{"silentJSONParsing":true,"forcedJSONParsing":true,"clarifyTimeoutError":false},"adapter":["xhr","http","fetch"],"transformRequest":[null],"transformResponse":[null],"timeout":10000,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"maxBodyLength":-1,"env":{},"headers":{"Accept":"application/json, text/plain, */*","Content-Type":"application/json","User-Agent":"axios/1.13.2","Content-Length":"219","Accept-Encoding":"gzip, compress, deflate, br"},"method":"post","url":"http://localhost:3005/rfq","data":"{\"underlying\":\"NVDAx\",\"optionType\":\"CALL\",\"expiryTs\":1766725657,\"strike\":185147890,\"size\":50000000000,\"premiumFloor\":150000000,\"validUntilTs\":1766120872,\"settlement\":\"CASH\",\"oraclePrice\":176331324,\"oracleTs\":1766120857}","allowAbsoluteUrls":true},"code":"ECONNREFUSED"}}
+2025-12-19T05:07:37.808Z [ERROR] Epoch roll failed {"error":{}}
+2025-12-19T05:07:44.638Z [INFO] Manual trigger received
+2025-12-19T05:07:44.639Z [INFO] ========================================
+2025-12-19T05:07:44.639Z [INFO] Starting epoch roll {"runNumber":2}
+2025-12-19T05:07:44.639Z [INFO] ========================================
+2025-12-19T05:07:44.639Z [INFO] Step 1: Fetching oracle price...
+2025-12-19T05:07:44.814Z [INFO] Fetched price from Pyth Hermes API {"assetId":"NVDAx","price":"176.34","confidence":"0.2298"}
+2025-12-19T05:07:44.814Z [INFO] Oracle price {"price":176.34378,"conf":229776}
+2025-12-19T05:07:44.814Z [INFO] Step 2: Computing strike...
+2025-12-19T05:07:44.814Z [INFO] Strike computed {"optionType":"CALL","spot":176.34378,"strike":185.160969,"deltaBps":500}
+2025-12-19T05:07:44.815Z [INFO] Step 3: Calculating notional...
+2025-12-19T05:07:44.815Z [INFO] Notional calculated {"tvl":100000,"utilizationBps":5000,"notional":50000}
+2025-12-19T05:07:44.815Z [INFO] Step 4: Creating RFQ...
+2025-12-19T05:07:44.819Z [ERROR] Failed to create RFQ {"error":{"message":"Error","name":"AggregateError","stack":"AggregateError: Error\n    at Function.AxiosError.from (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/core/AxiosError.js:96:14)\n    at RedirectableRequest.handleRequestError (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/adapters/http.js:817:25)\n    at RedirectableRequest.emit (node:events:530:35)\n    at RedirectableRequest.emit (node:domain:489:12)\n    at ClientRequest.eventHandlers.<computed> (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/follow-redirects/index.js:49:24)\n    at ClientRequest.emit (node:events:518:28)\n    at ClientRequest.emit (node:domain:489:12)\n    at emitErrorEvent (node:_http_client:104:11)\n    at Socket.socketErrorListener (node:_http_client:518:5)\n    at Socket.emit (node:events:518:28)\n    at Axios.request (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/core/Axios.js:45:41)\n    at processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createRfq (/Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:357:26)\n    at async runEpochRoll (/Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:470:29)\n    at async /Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:589:25","config":{"transitional":{"silentJSONParsing":true,"forcedJSONParsing":true,"clarifyTimeoutError":false},"adapter":["xhr","http","fetch"],"transformRequest":[null],"transformResponse":[null],"timeout":10000,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"maxBodyLength":-1,"env":{},"headers":{"Accept":"application/json, text/plain, */*","Content-Type":"application/json","User-Agent":"axios/1.13.2","Content-Length":"219","Accept-Encoding":"gzip, compress, deflate, br"},"method":"post","url":"http://localhost:3005/rfq","data":"{\"underlying\":\"NVDAx\",\"optionType\":\"CALL\",\"expiryTs\":1766725664,\"strike\":185160969,\"size\":50000000000,\"premiumFloor\":150000000,\"validUntilTs\":1766120879,\"settlement\":\"CASH\",\"oraclePrice\":176343780,\"oracleTs\":1766120864}","allowAbsoluteUrls":true},"code":"ECONNREFUSED"}}
+2025-12-19T05:07:44.819Z [ERROR] Epoch roll failed {"error":{}}
+2025-12-19T05:07:45.968Z [INFO] Manual trigger received
+2025-12-19T05:07:45.968Z [INFO] ========================================
+2025-12-19T05:07:45.968Z [INFO] Starting epoch roll {"runNumber":3}
+2025-12-19T05:07:45.968Z [INFO] ========================================
+2025-12-19T05:07:45.968Z [INFO] Step 1: Fetching oracle price...
+2025-12-19T05:07:46.229Z [INFO] Fetched price from Pyth Hermes API {"assetId":"NVDAx","price":"176.34","confidence":"0.2317"}
+2025-12-19T05:07:46.230Z [INFO] Oracle price {"price":176.342628,"conf":231695}
+2025-12-19T05:07:46.230Z [INFO] Step 2: Computing strike...
+2025-12-19T05:07:46.230Z [INFO] Strike computed {"optionType":"CALL","spot":176.342628,"strike":185.159759,"deltaBps":500}
+2025-12-19T05:07:46.230Z [INFO] Step 3: Calculating notional...
+2025-12-19T05:07:46.230Z [INFO] Notional calculated {"tvl":100000,"utilizationBps":5000,"notional":50000}
+2025-12-19T05:07:46.230Z [INFO] Step 4: Creating RFQ...
+2025-12-19T05:07:46.233Z [ERROR] Failed to create RFQ {"error":{"message":"Error","name":"AggregateError","stack":"AggregateError: Error\n    at Function.AxiosError.from (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/core/AxiosError.js:96:14)\n    at RedirectableRequest.handleRequestError (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/adapters/http.js:817:25)\n    at RedirectableRequest.emit (node:events:530:35)\n    at RedirectableRequest.emit (node:domain:489:12)\n    at ClientRequest.eventHandlers.<computed> (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/follow-redirects/index.js:49:24)\n    at ClientRequest.emit (node:events:518:28)\n    at ClientRequest.emit (node:domain:489:12)\n    at emitErrorEvent (node:_http_client:104:11)\n    at Socket.socketErrorListener (node:_http_client:518:5)\n    at Socket.emit (node:events:518:28)\n    at Axios.request (/Users/evan/Desktop/xstock-options/infra/keeper/node_modules/axios/lib/core/Axios.js:45:41)\n    at processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createRfq (/Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:357:26)\n    at async runEpochRoll (/Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:470:29)\n    at async /Users/evan/Desktop/xstock-options/infra/keeper/src/index.ts:589:25","config":{"transitional":{"silentJSONParsing":true,"forcedJSONParsing":true,"clarifyTimeoutError":false},"adapter":["xhr","http","fetch"],"transformRequest":[null],"transformResponse":[null],"timeout":10000,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"maxBodyLength":-1,"env":{},"headers":{"Accept":"application/json, text/plain, */*","Content-Type":"application/json","User-Agent":"axios/1.13.2","Content-Length":"219","Accept-Encoding":"gzip, compress, deflate, br"},"method":"post","url":"http://localhost:3005/rfq","data":"{\"underlying\":\"NVDAx\",\"optionType\":\"CALL\",\"expiryTs\":1766725666,\"strike\":185159759,\"size\":50000000000,\"premiumFloor\":150000000,\"validUntilTs\":1766120881,\"settlement\":\"CASH\",\"oraclePrice\":176342628,\"oracleTs\":1766120866}","allowAbsoluteUrls":true},"code":"ECONNREFUSED"}}
+2025-12-19T05:07:46.234Z [ERROR] Epoch roll failed {"error":{}}
+2025-12-19T05:08:58.472Z [INFO] Manual trigger received
+2025-12-19T05:08:58.475Z [INFO] ========================================
+2025-12-19T05:08:58.475Z [INFO] Starting epoch roll {"runNumber":4}
+2025-12-19T05:08:58.475Z [INFO] ========================================
+2025-12-19T05:08:58.475Z [INFO] Step 1: Fetching oracle price...
+2025-12-19T05:08:58.722Z [INFO] Fetched price from Pyth Hermes API {"assetId":"NVDAx","price":"176.33","confidence":"0.2278"}
+2025-12-19T05:08:58.722Z [INFO] Oracle price {"price":176.33446,"conf":227819}
+2025-12-19T05:08:58.723Z [INFO] Step 2: Computing strike...
+2025-12-19T05:08:58.723Z [INFO] Strike computed {"optionType":"CALL","spot":176.33446,"strike":185.151183,"deltaBps":500}
+2025-12-19T05:08:58.723Z [INFO] Step 3: Calculating notional...
+2025-12-19T05:08:58.723Z [INFO] Notional calculated {"tvl":100000,"utilizationBps":5000,"notional":50000}
+2025-12-19T05:08:58.723Z [INFO] Step 4: Creating RFQ...
+2025-12-19T05:08:58.771Z [INFO] RFQ created {"rfqId":"rfq_1766120938767_rv4356"}
+2025-12-19T05:08:58.771Z [INFO] Step 5: Waiting for quotes and filling...
+2025-12-19T05:08:58.772Z [INFO] Waiting for quotes... {"rfqId":"rfq_1766120938767_rv4356","waitMs":10000}
+2025-12-19T05:09:08.782Z [ERROR] Failed to fill RFQ {"rfqId":"rfq_1766120938767_rv4356","error":{"success":false,"error":"No quotes received"}}
+2025-12-19T05:09:08.782Z [WARN] No valid quotes received, epoch roll incomplete
+2025-12-19T05:10:51.042Z [INFO] Manual trigger received
+2025-12-19T05:10:51.045Z [INFO] ========================================
+2025-12-19T05:10:51.045Z [INFO] Starting epoch roll {"runNumber":5}
+2025-12-19T05:10:51.045Z [INFO] ========================================
+2025-12-19T05:10:51.045Z [INFO] Step 1: Fetching oracle price...
+2025-12-19T05:10:51.236Z [INFO] Fetched price from Pyth Hermes API {"assetId":"NVDAx","price":"176.39","confidence":"0.1999"}
+2025-12-19T05:10:51.237Z [INFO] Oracle price {"price":176.393959,"conf":199923}
+2025-12-19T05:10:51.237Z [INFO] Step 2: Computing strike...
+2025-12-19T05:10:51.237Z [INFO] Strike computed {"optionType":"CALL","spot":176.393959,"strike":185.213656,"deltaBps":500}
+2025-12-19T05:10:51.237Z [INFO] Step 3: Calculating notional...
+2025-12-19T05:10:51.237Z [INFO] Notional calculated {"tvl":100000,"utilizationBps":5000,"notional":50000}
+2025-12-19T05:10:51.237Z [INFO] Step 4: Creating RFQ...
+2025-12-19T05:10:51.244Z [INFO] RFQ created {"rfqId":"rfq_1766121051243_bstsr"}
+2025-12-19T05:10:51.244Z [INFO] Step 5: Waiting for quotes and filling...
+2025-12-19T05:10:51.244Z [INFO] Waiting for quotes... {"rfqId":"rfq_1766121051243_bstsr","waitMs":10000}
+2025-12-19T05:11:01.261Z [ERROR] Failed to fill RFQ {"rfqId":"rfq_1766121051243_bstsr","error":{"success":false,"error":"No quotes received"}}
+2025-12-19T05:11:01.261Z [WARN] No valid quotes received, epoch roll incomplete
+2025-12-19T05:11:53.400Z [INFO] Manual trigger received
+2025-12-19T05:11:53.403Z [INFO] ========================================
+2025-12-19T05:11:53.404Z [INFO] Starting epoch roll {"runNumber":6}
+2025-12-19T05:11:53.404Z [INFO] ========================================
+2025-12-19T05:11:53.404Z [INFO] Step 1: Fetching oracle price...
+2025-12-19T05:11:53.595Z [INFO] Fetched price from Pyth Hermes API {"assetId":"NVDAx","price":"176.51","confidence":"0.2466"}
+2025-12-19T05:11:53.595Z [INFO] Oracle price {"price":176.512509,"conf":246589}
+2025-12-19T05:11:53.595Z [INFO] Step 2: Computing strike...
+2025-12-19T05:11:53.595Z [INFO] Strike computed {"optionType":"CALL","spot":176.512509,"strike":185.338134,"deltaBps":500}
+2025-12-19T05:11:53.596Z [INFO] Step 3: Calculating notional...
+2025-12-19T05:11:53.596Z [INFO] Notional calculated {"tvl":100000,"utilizationBps":5000,"notional":50000}
+2025-12-19T05:11:53.596Z [INFO] Step 4: Creating RFQ...
+2025-12-19T05:11:53.621Z [INFO] RFQ created {"rfqId":"rfq_1766121113617_sp6qo9"}
+2025-12-19T05:11:53.621Z [INFO] Step 5: Waiting for quotes and filling...
+2025-12-19T05:11:53.621Z [INFO] Waiting for quotes... {"rfqId":"rfq_1766121113617_sp6qo9","waitMs":10000}
+2025-12-19T05:12:03.630Z [ERROR] Failed to fill RFQ {"rfqId":"rfq_1766121113617_sp6qo9","error":{"success":false,"error":"No quotes received"}}
+2025-12-19T05:12:03.630Z [WARN] No valid quotes received, epoch roll incomplete
+2025-12-19T05:13:41.851Z [INFO] Manual trigger received
+2025-12-19T05:13:41.852Z [INFO] ========================================
+2025-12-19T05:13:41.852Z [INFO] Starting epoch roll {"runNumber":7}
+2025-12-19T05:13:41.852Z [INFO] ========================================
+2025-12-19T05:13:41.853Z [INFO] Step 1: Fetching oracle price...
+2025-12-19T05:13:42.037Z [INFO] Fetched price from Pyth Hermes API {"assetId":"NVDAx","price":"176.59","confidence":"0.1940"}
+2025-12-19T05:13:42.037Z [INFO] Oracle price {"price":176.585916,"conf":193975}
+2025-12-19T05:13:42.037Z [INFO] Step 2: Computing strike...
+2025-12-19T05:13:42.037Z [INFO] Strike computed {"optionType":"CALL","spot":176.585916,"strike":185.415211,"deltaBps":500}
+2025-12-19T05:13:42.037Z [INFO] Step 3: Calculating notional...
+2025-12-19T05:13:42.037Z [INFO] Notional calculated {"tvl":100000,"utilizationBps":5000,"notional":50000}
+2025-12-19T05:13:42.037Z [INFO] Step 4: Creating RFQ...
+2025-12-19T05:13:42.046Z [INFO] RFQ created {"rfqId":"rfq_1766121222045_z1qpw"}
+2025-12-19T05:13:42.046Z [INFO] Step 5: Waiting for quotes and filling...
+2025-12-19T05:13:42.046Z [INFO] Waiting for quotes... {"rfqId":"rfq_1766121222045_z1qpw","waitMs":10000}
+2025-12-19T05:13:52.052Z [INFO] RFQ filled {"rfqId":"rfq_1766121222045_z1qpw","maker":"mock-mm-demo-maker","premium":500000000}
+2025-12-19T05:13:52.052Z [INFO] Step 6: Recording exposure and advancing epoch...
+2025-12-19T05:13:52.724Z [ERROR] On-chain transaction failed {"error":{"errorLogs":["Program log: AnchorError caused by account: vault. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated.","Program log: Left:","Program log: 3v8cc4nYDYQDzVbyPGMDQnCuDKHNmZAkT37DgNz4yDyP","Program log: Right:","Program log: 2EY6K9bAm74vHbdbkEzmYsbqVZUaUaaN7f26bHaUJmZH"],"logs":["Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY invoke [1]","Program log: Instruction: RecordNotionalExposure","Program log: AnchorError caused by account: vault. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated.","Program log: Left:","Program log: 3v8cc4nYDYQDzVbyPGMDQnCuDKHNmZAkT37DgNz4yDyP","Program log: Right:","Program log: 2EY6K9bAm74vHbdbkEzmYsbqVZUaUaaN7f26bHaUJmZH","Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY consumed 5007 of 200000 compute units","Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY failed: custom program error: 0x7d6"],"error":{"errorCode":{"code":"ConstraintSeeds","number":2006},"errorMessage":"A seeds constraint was violated","comparedValues":["3v8cc4nYDYQDzVbyPGMDQnCuDKHNmZAkT37DgNz4yDyP","2EY6K9bAm74vHbdbkEzmYsbqVZUaUaaN7f26bHaUJmZH"],"origin":"vault"},"_programErrorStack":{"stack":["8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY"]}}}
+2025-12-19T05:13:52.724Z [INFO] ========================================
+2025-12-19T05:13:52.724Z [INFO] Epoch roll completed successfully {"rfqId":"rfq_1766121222045_z1qpw","premium":500000000,"maker":"mock-mm-demo-maker","recordExposureTx":null,"advanceEpochTx":null}
+2025-12-19T05:13:52.724Z [INFO] ========================================
+2025-12-19T05:13:57.378Z [INFO] Manual settlement trigger received
+2025-12-19T05:13:57.884Z [ERROR] Settlement failed {"error":{"errorLogs":["Program log: AnchorError caused by account: vault. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated.","Program log: Left:","Program log: 3v8cc4nYDYQDzVbyPGMDQnCuDKHNmZAkT37DgNz4yDyP","Program log: Right:","Program log: 2EY6K9bAm74vHbdbkEzmYsbqVZUaUaaN7f26bHaUJmZH"],"logs":["Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY invoke [1]","Program log: Instruction: AdvanceEpoch","Program log: AnchorError caused by account: vault. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated.","Program log: Left:","Program log: 3v8cc4nYDYQDzVbyPGMDQnCuDKHNmZAkT37DgNz4yDyP","Program log: Right:","Program log: 2EY6K9bAm74vHbdbkEzmYsbqVZUaUaaN7f26bHaUJmZH","Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY consumed 5000 of 200000 compute units","Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY failed: custom program error: 0x7d6"],"error":{"errorCode":{"code":"ConstraintSeeds","number":2006},"errorMessage":"A seeds constraint was violated","comparedValues":["3v8cc4nYDYQDzVbyPGMDQnCuDKHNmZAkT37DgNz4yDyP","2EY6K9bAm74vHbdbkEzmYsbqVZUaUaaN7f26bHaUJmZH"],"origin":"vault"},"_programErrorStack":{"stack":["8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY"]}}}
+2025-12-19T05:25:12.144Z [INFO] ========================================
+2025-12-19T05:25:12.145Z [INFO] xStock Keeper Service Starting
+2025-12-19T05:25:12.145Z [INFO] ========================================
+2025-12-19T05:25:12.145Z [INFO] Configuration {"assetId":"NVDAx","cronSchedule":"0 */6 * * *","epochDuration":"604800s","quoteWait":"10000ms","strikeDelta":"500bps"}
+2025-12-19T05:25:12.177Z [INFO] Wallet loaded {"pubkey":"5cyhTaQ5A7gxwF5zmpn4zJHsyiLBQV9ffPvtNPYNiLpX"}
+2025-12-19T05:25:12.182Z [INFO] On-chain client initialized
+2025-12-19T05:25:12.183Z [INFO] Scheduling epoch rolls: 0 */6 * * *
+2025-12-19T05:25:12.185Z [INFO] Keeper service ready
+2025-12-19T05:25:12.185Z [INFO] ========================================
+2025-12-19T05:25:12.185Z [INFO] Health server listening on port 3010
+2025-12-19T05:26:01.241Z [INFO] Manual settlement trigger received
+2025-12-19T05:26:02.386Z [INFO] Settlement completed {"tx":"2gSwjHNCnzwZ8qLSnyi1y3sPphoQeiWxSfh7DHcW9WY1ZXJNURLoJCp9ZLh5p1Xo8f49wBd294dtERemNZT6cjRf"}
+2025-12-19T05:26:09.680Z [INFO] Manual trigger received
+2025-12-19T05:26:09.681Z [INFO] ========================================
+2025-12-19T05:26:09.681Z [INFO] Starting epoch roll {"runNumber":1}
+2025-12-19T05:26:09.681Z [INFO] ========================================
+2025-12-19T05:26:09.681Z [INFO] Step 1: Fetching oracle price...
+2025-12-19T05:26:09.884Z [INFO] Fetched price from Pyth Hermes API {"assetId":"NVDAx","price":"176.48","confidence":"0.1763"}
+2025-12-19T05:26:09.884Z [INFO] Oracle price {"price":176.475405,"conf":176327}
+2025-12-19T05:26:09.884Z [INFO] Step 2: Computing strike...
+2025-12-19T05:26:09.885Z [INFO] Strike computed {"optionType":"CALL","spot":176.475405,"strike":185.299175,"deltaBps":500}
+2025-12-19T05:26:09.885Z [INFO] Step 3: Calculating notional...
+2025-12-19T05:26:09.885Z [INFO] Notional calculated {"tvl":100000,"utilizationBps":5000,"notional":50000}
+2025-12-19T05:26:09.885Z [INFO] Step 4: Creating RFQ...
+2025-12-19T05:26:09.992Z [INFO] RFQ created {"rfqId":"rfq_1766121969956_kxcth"}
+2025-12-19T05:26:09.992Z [INFO] Step 5: Waiting for quotes and filling...
+2025-12-19T05:26:09.993Z [INFO] Waiting for quotes... {"rfqId":"rfq_1766121969956_kxcth","waitMs":10000}
+2025-12-19T05:26:20.000Z [INFO] RFQ filled {"rfqId":"rfq_1766121969956_kxcth","maker":"mock-mm-demo-maker","premium":500000000}
+2025-12-19T05:26:20.000Z [INFO] Step 6: Recording exposure and advancing epoch...
+2025-12-19T05:26:20.485Z [ERROR] On-chain transaction failed {"error":{"errorLogs":["Program log: AnchorError thrown in programs/vault/src/lib.rs:272. Error Code: ExceedsUtilizationCap. Error Number: 6006. Error Message: Exceeds utilization cap."],"logs":["Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY invoke [1]","Program log: Instruction: RecordNotionalExposure","Program log: AnchorError thrown in programs/vault/src/lib.rs:272. Error Code: ExceedsUtilizationCap. Error Number: 6006. Error Message: Exceeds utilization cap.","Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY consumed 5091 of 200000 compute units","Program 8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY failed: custom program error: 0x1776"],"error":{"errorCode":{"code":"ExceedsUtilizationCap","number":6006},"errorMessage":"Exceeds utilization cap","origin":{"file":"programs/vault/src/lib.rs","line":272}},"_programErrorStack":{"stack":["8gJHdrseXDiqUuBUBtMuNgn6G6GoLZ8oLiPHwru7NuPY"]}}}
+2025-12-19T05:26:20.486Z [INFO] ========================================
+2025-12-19T05:26:20.486Z [INFO] Epoch roll completed successfully {"rfqId":"rfq_1766121969956_kxcth","premium":500000000,"maker":"mock-mm-demo-maker","recordExposureTx":null,"advanceEpochTx":null}
+2025-12-19T05:26:20.486Z [INFO] ========================================
+2025-12-19T05:26:23.714Z [INFO] Manual settlement trigger received
+2025-12-19T05:26:24.641Z [INFO] Settlement completed {"tx":"5e1rZiBp1fEwjc7JZj2Vq9go1BRgLYkZi5duwiCQbWWFobQxKWxsiPhkfuVc5uYMfUnATYCjxn3meQAfbGKMC29c"}

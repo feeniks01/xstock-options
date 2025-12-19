@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useState, useEffect } from "react";
-import { RefreshCw, Info, CheckCircle, Clock, AlertCircle, Zap, Loader2, ExternalLink, Wallet, Radio } from "lucide-react";
+import { RefreshCw, Info, CheckCircle, Clock, AlertCircle, Zap, Loader2, ExternalLink, Wallet, Radio, Play, Square } from "lucide-react";
 import { useVault } from "../../../../hooks/useVault";
 import { useRfq } from "../../../../hooks/useRfq";
 import { getVaultTheme, type VaultTheme } from "../../../../themes/vaultThemes";
@@ -89,6 +89,7 @@ export default function VaultDetailPage() {
     const {
         vaultData,
         loading: vaultLoading,
+        vaultState,
         userShareBalance,
         userUnderlyingBalance,
         pendingWithdrawal,
@@ -136,7 +137,15 @@ export default function VaultDetailPage() {
     // Format helpers
     const decimals = vaultMeta?.decimals || 6;
     const formatTokenAmount = (amount: number) => (amount / Math.pow(10, decimals)).toFixed(2);
-    const strikePrice = underlyingPrice ? underlyingPrice * (1 + (vaultMeta?.strikeOffset || 0.10)) : null;
+    // Calculate strike price: ~10% OTM, rounded to $2.50 increments
+    const getRealisticStrike = (spot: number): number => {
+        // Calculate 10% OTM target
+        const otmTarget = spot * 1.10;
+        // Round to nearest $2.50 increment
+        const increment = 2.5;
+        return Math.round(otmTarget / increment) * increment;
+    };
+    const strikePrice = underlyingPrice ? getRealisticStrike(underlyingPrice) : null;
     const formatPrice = (p: number | null) => p ? `$${p.toFixed(2)}` : "—";
     const depositNum = parseFloat(depositAmount) || 0;
     const withdrawNum = parseFloat(withdrawAmount) || 0;
@@ -517,18 +526,33 @@ export default function VaultDetailPage() {
                         <PayoffChart spotPrice={underlyingPrice} strikePrice={strikePrice} premiumRange={vaultMeta.premiumRange} />
                     )}
 
-                    {/* Devnet Info */}
+                    {/* Vault State Banner - Manual Epoch Mode */}
                     {vaultMeta.isLive && (
-                        <div className="flex items-center gap-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-sm">
-                            <Zap className="w-4 h-4 text-blue-400" />
-                            <span className="text-blue-300">
-                                {tvlTokens > 0
-                                    ? `Epoch #${epoch} active. ${daysUntilEnd}d ${remainingHours}h until withdrawals unlock.`
-                                    : `Live on Devnet. Deposit to start Epoch #${epoch}.`
-                                }
-                            </span>
+                        <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${vaultState === "ACTIVE"
+                            ? "bg-green-500/10 border border-green-500/20"
+                            : "bg-blue-500/10 border border-blue-500/20"
+                            }`}>
+                            {vaultState === "ACTIVE" ? (
+                                <>
+                                    <Play className="w-4 h-4 text-green-400" />
+                                    <span className="text-green-300">
+                                        <strong>Exposure Active</strong> — Epoch #{epoch} · Withdrawals queued until settlement
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <Zap className="w-4 h-4 text-blue-400" />
+                                    <span className="text-blue-300">
+                                        {tvlTokens > 0
+                                            ? <><strong>Awaiting Manual Roll</strong> — Epoch #{epoch} · Ready for execution</>
+                                            : `Live on Devnet. Deposit to start Epoch #${epoch}.`
+                                        }
+                                    </span>
+                                </>
+                            )}
                         </div>
                     )}
+
 
                     {/* Transaction Status Toast */}
                     {txSignature && txStatus === "success" && (

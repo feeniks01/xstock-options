@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import { Coins, PieChart, Activity, BookOpen, Settings, Droplets } from "lucide-react";
+import { SidebarDemoPanel } from "../../components/DemoPanel";
 
 const WalletMultiButton = dynamic(
     () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
@@ -131,6 +132,9 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
                                 </Link>
                             );
                         })}
+
+                        {/* Demo Controls */}
+                        <SidebarDemoPanel collapsed={sidebarCollapsed} />
                     </nav>
 
                     {/* Divider */}

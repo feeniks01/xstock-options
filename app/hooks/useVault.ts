@@ -23,10 +23,19 @@ const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://api.devnet.solana.co
 
 export type TransactionStatus = "idle" | "building" | "signing" | "confirming" | "success" | "error";
 
+// Vault state for manual epoch execution mode
+// IDLE: No active options exposure - deposits/withdrawals allowed
+// ACTIVE: Options are live - withdrawals queued until settlement
+// ROLLING/SETTLING: Transient states during keeper operations
+export type VaultState = "IDLE" | "ROLLING" | "ACTIVE" | "SETTLING";
+
 interface UseVaultReturn {
     vaultData: VaultData | null;
     loading: boolean;
     error: string | null;
+
+    // Vault state for manual epoch mode
+    vaultState: VaultState;
 
     // User balances
     userShareBalance: number;
@@ -309,10 +318,18 @@ export function useVault(assetId: string): UseVaultReturn {
         }
     };
 
+    // Derive vault state from on-chain data
+    // IDLE: No active options exposure
+    // ACTIVE: Options are live (epochNotionalExposed > 0)
+    const vaultState: VaultState = vaultData && Number(vaultData.epochNotionalExposed) > 0
+        ? "ACTIVE"
+        : "IDLE";
+
     return {
         vaultData,
         loading,
         error,
+        vaultState,
         userShareBalance,
         userUnderlyingBalance,
         pendingWithdrawal,
